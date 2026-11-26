@@ -8,6 +8,7 @@ window.SR = window.SR || {};
 (function (SR) {
   const LOCAL_STORAGE_KEY = 'sr_leaderboard_v3';
   const LOCAL_FEEDBACK_KEY = 'sr_feedback_local_v1';
+  const LOCAL_PLAYS_KEY = 'sr_local_plays_v1';
   const MAX_RECORDS = 100;
   const VALID_BOARDS = ['campaign', 'stage_1', 'stage_2', 'stage_3', 'stage_4', 'stage_5'];
   const VALID_CHAR_FILTERS = ['all', 'magic', 'gun', 'blade'];
@@ -328,6 +329,30 @@ window.SR = window.SR || {};
         window.localStorage.setItem(LOCAL_FEEDBACK_KEY, JSON.stringify(updated));
       } catch (_) {}
       return { ok: true, mode: 'local' };
+    }
+
+    // Secretly record each brand-new play session (no UI display anywhere!)
+    recordPlay(payload = {}) {
+      const charId = HERO_DISPLAY[payload.charId] ? payload.charId : 'magic';
+      const startStage = SR.clamp(parseInt(payload.startStage, 10) || 1, 1, 5);
+      const usedCheats = !!payload.usedCheats;
+      const version = SR.GAME_VERSION || 'v1.4.0';
+
+      try {
+        const prev = parseInt(window.localStorage.getItem(LOCAL_PLAYS_KEY) || '0', 10) || 0;
+        window.localStorage.setItem(LOCAL_PLAYS_KEY, String(prev + 1));
+      } catch (_) {}
+
+      if (this.isCloudEnabled()) {
+        try {
+          fetch(`${this.getApiBase()}/api/play`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            keepalive: true,
+            body: JSON.stringify({ charId, startStage, usedCheats, version })
+          }).catch(() => {});
+        } catch (_) {}
+      }
     }
 
     formatTime(sec) {

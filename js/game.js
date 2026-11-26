@@ -1083,6 +1083,9 @@ window.SR = window.SR || {};
         this.runFinalized = false;
         this.usedCheats = !!(this.cheats.godMode || this.cheats.onePunch);
         this.checkpointSnapshot = { score: 0, kills: 0 };
+        if (SR.leaderboard && SR.leaderboard.recordPlay) {
+          SR.leaderboard.recordPlay({ charId, startStage: this.chainStartStage, usedCheats: this.usedCheats });
+        }
         if (!this.usedCheats && SR.leaderboard) {
           SR.leaderboard.startRun(charId, this.chainStartStage);
         }

@@ -12,6 +12,8 @@ const RATE_LIMIT_WINDOW_SEC = 600; // 30 score updates per 10 minutes per IP
 const MAX_FEEDBACK_ITEMS = 200;
 const FEEDBACK_RATE_MAX = 5;
 const FEEDBACK_RATE_WINDOW_SEC = 3600; // 5 feedback submissions per hour per IP
+const PLAY_RATE_MAX = 30;
+const PLAY_RATE_WINDOW_SEC = 600; // 30 play starts per 10 minutes per IP
 const VALID_FEEDBACK_CATEGORIES = new Set(['bug', 'balance', 'idea', 'praise', 'other']);
 const VALID_CHARS = new Set(['magic', 'gun', 'blade']);
 const VALID_BOARDS = new Set(['campaign', 'stage_1', 'stage_2', 'stage_3', 'stage_4', 'stage_5']);
@@ -131,6 +133,17 @@ function sanitizeMessage(raw) {
     .replace(/\r\n?/g, '\n')
     .trim()
     .slice(0, 500);
+}
+
+function defaultPlayStats() {
+  return {
+    totalPlays: 0,
+    cheatPlays: 0,
+    byHero: { magic: 0, gun: 0, blade: 0 },
+    byStage: { stage_1: 0, stage_2: 0, stage_3: 0, stage_4: 0, stage_5: 0 },
+    byVersion: {},
+    lastPlayAt: null
+  };
 }
 
 function normNameKey(name) {
@@ -397,6 +410,97 @@ export default {
       }
       await env.LEADERBOARD_KV.put('feedback:list', '[]');
       return json({ ok: true, cleared: true }, 200, headers);
+    }
+
+    // 8) POST /api/play — Silently increment global play counter (returns no stats to players)
+    if (request.method === 'POST' && url.pathname === '/api/play') {
+      const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+      const playRateKey = `rl:play:${ip}`;
+      const hits = parseInt((await env.LEADERBOARD_KV.get(playRateKey)) || '0', 10);
+      if (hits >= PLAY_RATE_MAX) {
+        return json({ error: 'rate_limited' }, 429, headers);
+      }
+      await env.LEADERBOARD_KV.put(playRateKey, String(hits + 1), { expirationTtl: PLAY_RATE_WINDOW_SEC });
+
+      const body = (await readJsonBody(request)) || {};
+      const charId = VALID_CHARS.has(body.charId) ? body.charId : 'magic';
+      const startStage = Math.max(1, Math.min(5, parseInt(body.startStage, 10) || 1));
+      const version = sanitizeName(body.version || '').slice(0, 24) || 'unknown';
+      const usedCheats = !!body.usedCheats;
+
+      const base = defaultPlayStats();
+      const stored = (await env.LEADERBOARD_KV.get('stats:plays', { type: 'json' })) || {};
+      const stats = {
+        ...base,
+        ...stored,
+        byHero: { ...base.byHero, ...(stored.byHero || {}) },
+        byStage: { ...base.byStage, ...(stored.byStage || {}) },
+        byVersion: { ...(stored.byVersion || {}) }
+      };
+
+      stats.totalPlays = (stats.totalPlays || 0) + 1;
+      if (usedCheats) stats.cheatPlays = (stats.cheatPlays || 0) + 1;
+      stats.byHero[charId] = (stats.byHero[charId] || 0) + 1;
+      const stageKey = `stage_${startStage}`;
+      stats.byStage[stageKey] = (stats.byStage[stageKey] || 0) + 1;
+      stats.byVersion[version] = (stats.byVersion[version] || 0) + 1;
+      stats.lastPlayAt = Date.now();
+
+      await env.LEADERBOARD_KV.put('stats:plays', JSON.stringify(stats));
+      return json({ ok: true }, 200, headers);
+    }
+
+    // 9) GET /api/admin/stats — Owner-only view of total plays & summary (?format=text for readable output)
+    if (request.method === 'GET' && url.pathname === '/api/admin/stats') {
+      if (!env.ADMIN_RESET_KEY || env.ADMIN_RESET_KEY.length < 12) {
+        return json({ error: 'admin_reset_not_configured' }, 503, headers);
+      }
+      const providedKey = request.headers.get('X-Admin-Key') || '';
+      if (!timingSafeEqual(providedKey, env.ADMIN_RESET_KEY)) {
+        return json({ error: 'unauthorized' }, 401, headers);
+      }
+      const base = defaultPlayStats();
+      const stored = (await env.LEADERBOARD_KV.get('stats:plays', { type: 'json' })) || {};
+      const stats = {
+        ...base,
+        ...stored,
+        byHero: { ...base.byHero, ...(stored.byHero || {}) },
+        byStage: { ...base.byStage, ...(stored.byStage || {}) },
+        byVersion: { ...(stored.byVersion || {}) }
+      };
+      const fbList = (await env.LEADERBOARD_KV.get('feedback:list', { type: 'json' })) || [];
+      const feedbackCount = Array.isArray(fbList) ? fbList.length : 0;
+
+      if (url.searchParams.get('format') === 'text') {
+        const verParts = Object.entries(stats.byVersion || {}).map(([k, v]) => `${k}=${v}`);
+        const lines = [
+          `Total Plays: ${stats.totalPlays}`,
+          `Cheat Plays: ${stats.cheatPlays}`,
+          `By Hero: magic=${stats.byHero.magic}, gun=${stats.byHero.gun}, blade=${stats.byHero.blade}`,
+          `By Start Stage: S1=${stats.byStage.stage_1}, S2=${stats.byStage.stage_2}, S3=${stats.byStage.stage_3}, S4=${stats.byStage.stage_4}, S5=${stats.byStage.stage_5}`,
+          `By Version: ${verParts.length ? verParts.join(', ') : 'none'}`,
+          `Last Play: ${stats.lastPlayAt ? new Date(stats.lastPlayAt).toISOString() : 'never'}`,
+          `Total Feedbacks: ${feedbackCount}`
+        ];
+        return new Response(lines.join('\n'), {
+          status: 200,
+          headers: { 'Content-Type': 'text/plain; charset=utf-8', ...headers }
+        });
+      }
+      return json({ ok: true, stats, feedbackCount }, 200, headers);
+    }
+
+    // 10) POST /api/admin/stats/reset — Owner-only reset of play stats counter
+    if (request.method === 'POST' && url.pathname === '/api/admin/stats/reset') {
+      if (!env.ADMIN_RESET_KEY || env.ADMIN_RESET_KEY.length < 12) {
+        return json({ error: 'admin_reset_not_configured' }, 503, headers);
+      }
+      const providedKey = request.headers.get('X-Admin-Key') || '';
+      if (!timingSafeEqual(providedKey, env.ADMIN_RESET_KEY)) {
+        return json({ error: 'unauthorized' }, 401, headers);
+      }
+      await env.LEADERBOARD_KV.put('stats:plays', JSON.stringify(defaultPlayStats()));
+      return json({ ok: true, reset: true }, 200, headers);
     }
 
     return json({ error: 'not_found' }, 404, headers);
