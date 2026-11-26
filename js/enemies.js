@@ -437,10 +437,10 @@ window.SR = window.SR || {};
           game.enemyProjectiles.push({
             kind: 'petal', x: this.cx, y: this.cy,
             vx: Math.cos(ang) * 285 * this.spdScale, vy: Math.sin(ang) * 285 * this.spdScale,
-            r: 8.5, life: 2.5, color: this.hellStyle ? '#ff7da8' : '#9cf5ff', deflectable: true
+            r: 8.5, life: 2.5, color: this.hellStyle ? '#ff7da8' : '#ffb86c', deflectable: true
           });
         });
-        SR.particles.spawnRing(this.cx, this.cy, '#9cf5ff', 32, 0.25);
+        SR.particles.spawnRing(this.cx, this.cy, this.hellStyle ? '#ff7da8' : '#ffb86c', 32, 0.25);
         this.state = 'patrol';
         this.stateTimer = 2.15 / this.spdScale;
       }

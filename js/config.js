@@ -2,7 +2,7 @@
 window.SR = window.SR || {};
 
 (function (SR) {
-  const GAME_VERSION = 'v1.4.0';
+  const GAME_VERSION = 'v1.0.0';
   const VIEW_W = 1200;
   const VIEW_H = 680;
 

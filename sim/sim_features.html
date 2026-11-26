@@ -63,7 +63,7 @@
         }
 
         // 1) Version & Audio SFX
-        assert(SR.GAME_VERSION === 'v1.4.0', `SR.GAME_VERSION === 'v1.4.0'`);
+        assert(SR.GAME_VERSION === 'v1.0.0', `SR.GAME_VERSION === 'v1.0.0'`);
         assert(typeof SR.audio.bark === 'function' && typeof SR.audio.meow === 'function', 'SR.audio.bark & meow exist');
 
         // 2) Skill 2-Charge, Cooldowns (+1s) & 30s Ult CD
@@ -75,7 +75,7 @@
             `${charId}: skillCd=${p.def.skillCooldown}s, maxCharges=${p.skillMaxCharges}, ultCd=${p.def.ultimateCooldown}s`);
         }
 
-        // 3) Puddle Midpoint Slowdown (1.6s, 0.48x walk, 0.62x slide)
+        // 3) Puddle Slowdown (1.0s, 0.48x walk, 0.62x slide)
         {
           const g = createBossGame('gun', 0, 'finalboss');
           const p = g.player;
@@ -83,7 +83,7 @@
           SR.weather.puddles = [{ x: p.cx, y: p.y + p.h, w: 72, life: 5, maxLife: 5, ripple: 0 }];
           p.onGround = true;
           SR.weather.update(DT, p, g.level, g.camX, 1200, g);
-          assert(Math.abs(p.slowTimer - 1.6) < 0.05, `Puddle slowTimer=${p.slowTimer.toFixed(2)}s`);
+          assert(Math.abs(p.slowTimer - 1.0) < 0.05, `Puddle slowTimer=${p.slowTimer.toFixed(2)}s`);
           p.startSlide();
           assert(Math.abs(Math.abs(p.vx) / p.def.slideSpeed - 0.62) < 0.01, 'Puddle slide speed ~0.62x');
           p.endSlide(g.level.solids);
@@ -91,6 +91,67 @@
           const blankIn = { left: false, right: true, up: false, down: false, aimUp: false, aimDown: false, aimMode: 'keyboard' };
           for (let i = 0; i < 30; i++) p.update(DT, blankIn, g.level, g);
           assert(Math.abs(p.vx / p.def.speed - 0.48) < 0.02, 'Puddle walk speed ~0.48x');
+        }
+
+        // 3b) Boss-Area 3x Lightning Storm Rate
+        {
+          const g = createBossGame('gun', 0, 'finalboss');
+          const p = g.player;
+          p.x = 200; p.y = 575;
+          g.activeArena = null;
+          SR.weather.reset(g.level.meta);
+          SR.weather.lightningTimer = 15.0;
+          assert(!SR.weather.isInBossArea(p, g.level, g), 'isInBossArea is false outside boss arenas');
+          for (let i = 0; i < 180; i++) SR.weather.update(DT, p, g.level, 0, 1200, g);
+          const outsideDrop = 15.0 - SR.weather.lightningTimer;
+          assert(Math.abs(outsideDrop - 3.0) < 0.1, `Outside boss area lightning timer drop=${outsideDrop.toFixed(2)}s over 3s`);
+
+          g.activeArena = g.level.bossArenas.finalboss;
+          p.x = g.activeArena.minX + 180;
+          SR.weather.lightningTimer = 15.0;
+          assert(SR.weather.isInBossArea(p, g.level, g), 'isInBossArea is true inside boss arena');
+          for (let i = 0; i < 180; i++) SR.weather.update(DT, p, g.level, g.camX, 1200, g);
+          const bossDrop = 15.0 - SR.weather.lightningTimer;
+          assert(Math.abs(bossDrop - 9.0) < 0.25, `Inside boss area lightning timer drop=${bossDrop.toFixed(2)}s (3x faster!)`);
+        }
+
+        // 3c) Army Soldier Projectiles Must Never Use Blue
+        {
+          function isBlueHex(hex) {
+            if (!hex || typeof hex !== 'string' || hex[0] !== '#') return false;
+            const n = parseInt(hex.slice(1), 16);
+            const r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+            const max = Math.max(r, g, b), min = Math.min(r, g, b);
+            const d = max - min;
+            if (d < 0.08) return false;
+            let h = 0;
+            if (max === r) h = ((g - b) / d) % 6;
+            else if (max === g) h = (b - r) / d + 2;
+            else h = (r - g) / d + 4;
+            h = (h * 60 + 360) % 360;
+            return h >= 175 && h <= 255;
+          }
+          const soldierProjs = [];
+          for (const hellStyle of [false, true]) {
+            const level = SR.createLevel(hellStyle ? 4 : 0);
+            const p = new SR.Player('gun', 650, 575);
+            const g = { state: 'playing', level, player: p, enemies: [], enemyProjectiles: [], playerProjectiles: [], camX: 200, camY: 0, cheats: {} };
+            const slime = new SR.Enemy({ type: 'slime', x: 520, y: 551, patrolMin: 400, patrolMax: 900 }, level.meta);
+            const turret = new SR.Enemy({ type: 'prism_turret', x: 520, y: 551, patrolMin: 400, patrolMax: 900 }, level.meta);
+            const wisp = new SR.Enemy({ type: 'wisp', x: 520, y: 420, patrolMin: 400, patrolMax: 900 }, level.meta);
+            const bomber = new SR.Enemy({ type: 'bomber', x: 640, y: 360, patrolMin: 400, patrolMax: 900 }, level.meta);
+            slime.stateTimer = 0.05; turret.stateTimer = 0.05; wisp.stateTimer = 0.05; bomber.stateTimer = 0.05;
+            for (let i = 0; i < 120; i++) {
+              slime.update(DT, p, level, g);
+              turret.update(DT, p, level, g);
+              wisp.update(DT, p, level, g);
+              bomber.update(DT, p, level, g);
+            }
+            soldierProjs.push(...g.enemyProjectiles);
+          }
+          const anyBlue = soldierProjs.filter(ep => isBlueHex(ep.color));
+          assert(soldierProjs.length >= 10 && anyBlue.length === 0,
+            `Checked ${soldierProjs.length} army soldier projectiles (slime/wisp/bomber/prism_turret): ${anyBlue.length} blue found`);
         }
 
         // 4) Woof! & Meow! Sound Waves

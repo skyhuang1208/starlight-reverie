@@ -110,12 +110,25 @@ window.SR = window.SR || {};
       });
     }
 
+    isInBossArea(player, level, game) {
+      if (game && game.activeArena) return true;
+      if (!player || !level || !level.bossArenas) return false;
+      const mid = level.bossArenas.midboss;
+      const fin = level.bossArenas.finalboss;
+      const px = player.cx;
+      if (mid && px >= mid.minX && px <= mid.maxX) return true;
+      if (fin && px >= fin.minX && px <= fin.maxX) return true;
+      return false;
+    }
+
     update(dt, player, level, camX, viewW, game) {
       if (!player) return;
 
-      // 1) Lightning cloud spawner (rare yet not too rare)
-      this.lightningTimer -= dt;
-      if (this.lightningTimer <= 0 && this.clouds.length < 1) {
+      // 1) Lightning cloud spawner (3x frequency in boss areas!)
+      const inBossArea = this.isInBossArea(player, level, game);
+      const maxClouds = inBossArea ? 2 : 1;
+      this.lightningTimer -= dt * (inBossArea ? 3 : 1);
+      if (this.lightningTimer <= 0 && this.clouds.length < maxClouds) {
         this.spawnTrackingCloud(player, camX, viewW);
         this.lightningTimer = this.config.lightningMin + Math.random() * (this.config.lightningMax - this.config.lightningMin);
       }
@@ -281,7 +294,7 @@ window.SR = window.SR || {};
           player.x + player.w > p.x - p.w * 0.45 &&
           player.x < p.x + p.w * 0.45
         ) {
-          player.applySlow(1.6);
+          player.applySlow(1.0);
           if (Math.abs(player.vx) > 40 && Math.random() < 0.25) {
             SR.particles.spawnBurst(player.cx, feetY, this.config.hellTheme ? ['#ff94b8', '#ffda9e'] : ['#9cebff', '#ffffff'], 2, {
               speedMin: 20, speedMax: 65, upward: 50, life: 0.24, size: 2.5

@@ -242,7 +242,7 @@ window.SR = window.SR || {};
       this.feedbackModalOpen = true;
       this.feedbackSubmitting = false;
       if (this.el.feedbackMetaSub) {
-        this.el.feedbackMetaSub.textContent = `${SR.GAME_VERSION || 'v1.4.0'} · ${this.playerName || 'Dreamer'}`;
+        this.el.feedbackMetaSub.textContent = `${SR.GAME_VERSION || 'v1.0.0'} · ${this.playerName || 'Dreamer'}`;
       }
       if (this.el.feedbackStatus) {
         this.el.feedbackStatus.classList.add('hidden');
@@ -621,7 +621,7 @@ window.SR = window.SR || {};
       }
 
       // Version Display & Player Feedback Modal Controls
-      const ver = SR.GAME_VERSION || 'v1.4.0';
+      const ver = SR.GAME_VERSION || 'v1.0.0';
       if (this.el.menuVersionBadge) this.el.menuVersionBadge.textContent = ver;
       if (this.el.pauseVersionTag) this.el.pauseVersionTag.textContent = `Starlight Reverie · ${ver}`;
 

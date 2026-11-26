@@ -297,7 +297,7 @@ window.SR = window.SR || {};
         category: payload.category || 'idea',
         rating: (Number.isInteger(rawRating) && rawRating >= 1 && rawRating <= 5) ? rawRating : null,
         message,
-        version: SR.GAME_VERSION || 'v1.4.0',
+        version: SR.GAME_VERSION || 'v1.0.0',
         stage: (Number.isInteger(rawStage) && rawStage >= 1 && rawStage <= 5) ? rawStage : null,
         charId: HERO_DISPLAY[payload.charId] ? payload.charId : null
       };
@@ -336,7 +336,7 @@ window.SR = window.SR || {};
       const charId = HERO_DISPLAY[payload.charId] ? payload.charId : 'magic';
       const startStage = SR.clamp(parseInt(payload.startStage, 10) || 1, 1, 5);
       const usedCheats = !!payload.usedCheats;
-      const version = SR.GAME_VERSION || 'v1.4.0';
+      const version = SR.GAME_VERSION || 'v1.0.0';
 
       try {
         const prev = parseInt(window.localStorage.getItem(LOCAL_PLAYS_KEY) || '0', 10) || 0;
