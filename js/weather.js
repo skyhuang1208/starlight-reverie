@@ -281,7 +281,7 @@ window.SR = window.SR || {};
           player.x + player.w > p.x - p.w * 0.45 &&
           player.x < p.x + p.w * 0.45
         ) {
-          player.applySlow(1.25);
+          player.applySlow(1.6);
           if (Math.abs(player.vx) > 40 && Math.random() < 0.25) {
             SR.particles.spawnBurst(player.cx, feetY, this.config.hellTheme ? ['#ff94b8', '#ffda9e'] : ['#9cebff', '#ffffff'], 2, {
               speedMin: 20, speedMax: 65, upward: 50, life: 0.24, size: 2.5

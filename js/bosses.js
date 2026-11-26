@@ -127,7 +127,7 @@ window.SR = window.SR || {};
   class MidBoss extends BaseBoss {
     constructor(arena) {
       const variant = arena.variant || 'dewdrop';
-      const baseHp = variant === 'pyro' ? 820 : (variant === 'frost' ? 680 : 540);
+      const baseHp = variant === 'pyro' ? 1640 : (variant === 'frost' ? 1360 : 1080);
       const baseScore = variant === 'pyro' ? 3200 : (variant === 'frost' ? 2800 : 1500);
       super(arena, {
         w: 80, h: 86, hp: baseHp,
@@ -478,9 +478,9 @@ window.SR = window.SR || {};
   const HUMAN_SUMMON_CD = {
     human_grandma: { p1: 23.0, p2: 19.0 },
     human_athlete: { p1: 22.0, p2: 18.0 },
-    human_trader: { p1: 21.0, p2: 17.0 },
-    human_engineer: { p1: 20.0, p2: 16.0 },
-    human_jk: { p1: 19.0, p2: 15.0 }
+    human_trader: { p1: 23.0, p2: 19.5 },
+    human_engineer: { p1: 22.0, p2: 18.5 },
+    human_jk: { p1: 21.0, p2: 18.0 }
   };
 
   // ==================== 5 SUPER-CHARGED HUMAN FINAL BOSSES ====================
@@ -635,7 +635,7 @@ window.SR = window.SR || {};
       if (this.typingAnim > 0) this.typingAnim -= dt;
       if (this.summonCooldown > 0) this.summonCooldown -= dt;
       this.stateTimer -= dt;
-      const spd = (this.phase === 2 ? 1.16 : 1.0) * this.spec.spd;
+      const spd = (this.phase === 2 ? 1.10 : 1.0) * this.spec.spd;
 
       // Unified sky-drop rain system (Engineer Error Rain, Stock Trader Market Crash, Mika Sneeze Rain & Cooking Food Rain!)
       for (let i = this.meteors.length - 1; i >= 0; i--) {
@@ -680,7 +680,7 @@ window.SR = window.SR || {};
         if (this.stateTimer <= 0) {
           this.spawnReinforcements(level, game);
           this.state = 'idle';
-          this.stateTimer = 0.95 / spd;
+          this.stateTimer = 1.15 / spd;
         }
         this.moveArenaBody(dt, level, false);
         return;
@@ -1003,23 +1003,23 @@ window.SR = window.SR || {};
           this.patternIndex++;
           if (this.state === 'kline_prep') {
             this.sportMode = 'kline';
-            this.stateTimer = 0.46 / spd;
+            this.stateTimer = 0.56 / spd;
             if (SR.audio.stockBell) SR.audio.stockBell();
             SR.particles.spawnText(this.cx, this.y - 24, 'K線多空雙殺！！', '#ff6b78', 1.12);
           } else if (this.state === 'crash_prep') {
             this.sportMode = 'crash';
-            this.stateTimer = 1.35;
-            const cnt = this.phase === 2 ? 7 : 5;
-            this.queueSkyDrops(cnt, 'stock_crash', ['-10%', '跌停!', 'MARGIN', '斷頭!', '-9.9%', '崩盤!'], ['#52f29b', '#ff6b78'], 0.84, 570);
+            this.stateTimer = 1.45;
+            const cnt = this.phase === 2 ? 5 : 4;
+            this.queueSkyDrops(cnt, 'stock_crash', ['-10%', '跌停!', 'MARGIN', '斷頭!', '-9.9%', '崩盤!'], ['#52f29b', '#ff6b78'], 0.95, 570);
             SR.audio.bossAlert();
             SR.particles.spawnText(this.cx, this.y - 24, '大盤崩盤・跌停瀑布！！', '#52f29b', 1.18);
           } else if (this.state === 'bull_dash_prep') {
             this.sportMode = 'bull';
-            this.stateTimer = 0.50 / spd;
+            this.stateTimer = 0.60 / spd;
             SR.particles.spawnText(this.cx, this.y - 24, '漲停鎖死・暴力突破！！', '#ffe58f', 1.15);
           } else if (this.state === 'orders_prep') {
             this.sportMode = 'orders';
-            this.stateTimer = 0.50 / spd;
+            this.stateTimer = 0.58 / spd;
             if (SR.audio.stockBell) SR.audio.stockBell();
             SR.particles.spawnText(this.cx, this.y - 24, 'ALL-IN 軋空委託單！', '#9cf5e3', 1.1);
           }
@@ -1028,15 +1028,15 @@ window.SR = window.SR || {};
         this.facing = player.cx >= this.cx ? 1 : -1;
         this.vx = 0;
         if (this.stateTimer <= 0) {
-          // Balanced 5-7 Red & Green K-Line Candlesticks fan!
+          // Balanced 4-6 Red & Green K-Line Candlesticks fan!
           this.swingAnim = 0.35;
-          const count = this.phase === 2 ? 7 : 5;
+          const count = this.phase === 2 ? 6 : 4;
           const baseAng = Math.atan2(player.cy - this.cy, player.cx - this.cx);
           const spread = this.phase === 2 ? 1.65 : 1.3;
           for (let i = 0; i < count; i++) {
             const ang = baseAng - spread * 0.5 + (spread / (count - 1)) * i;
             const isBull = i % 2 === 0;
-            const pSpd = (isBull ? 420 : 350) * (this.phase === 2 ? 1.08 : 1.0);
+            const pSpd = (isBull ? 390 : 325) * (this.phase === 2 ? 1.06 : 1.0);
             game.enemyProjectiles.push({
               kind: 'candlestick',
               bull: isBull,
@@ -1052,13 +1052,13 @@ window.SR = window.SR || {};
           }
           SR.audio.shoot(true);
           this.state = 'idle';
-          this.stateTimer = 1.08 / spd;
+          this.stateTimer = 1.54 / spd;
         }
       } else if (this.state === 'crash_prep') {
         this.vx = 0;
         if (this.stateTimer <= 0) {
-          // Sweeps 3–4 aimed sell-off candlesticks at ground/mid level!
-          const count = this.phase === 2 ? 4 : 3;
+          // Sweeps 2-3 aimed sell-off candlesticks at ground/mid level!
+          const count = this.phase === 2 ? 3 : 2;
           const baseAng = Math.atan2(player.cy - this.cy, player.cx - this.cx);
           for (let i = 0; i < count; i++) {
             const ang = baseAng + (i - (count - 1) * 0.5) * 0.22;
@@ -1069,7 +1069,7 @@ window.SR = window.SR || {};
             });
           }
           this.state = 'idle';
-          this.stateTimer = 1.06 / spd;
+          this.stateTimer = 1.50 / spd;
         }
       } else if (this.state === 'bull_dash_prep') {
         this.facing = player.cx >= this.cx ? 1 : -1;
@@ -1079,13 +1079,13 @@ window.SR = window.SR || {};
           this.state = 'bull_dash';
           this.stateTimer = 1.35;
           this.trailTick = 0.2;
-          this.vx = this.facing * (this.phase === 2 ? 820 : 720);
+          this.vx = this.facing * (this.phase === 2 ? 720 : 640);
           SR.audio.slide();
         }
       } else if (this.state === 'bull_dash') {
         this.trailTick -= dt;
         if (this.trailTick <= 0) {
-          this.trailTick = this.phase === 2 ? 0.21 : 0.28;
+          this.trailTick = this.phase === 2 ? 0.28 : 0.36;
           // Launches rising red/gold breakout candlesticks upward as he surges across the arena!
           game.enemyProjectiles.push({
             kind: 'candlestick', bull: true, x: this.cx, y: this.cy - 10,
@@ -1096,14 +1096,14 @@ window.SR = window.SR || {};
         if (this.isAtArenaEdge(16) || this.stateTimer <= 0) {
           this.vx = 0;
           this.state = 'idle';
-          this.stateTimer = 1.06 / spd;
+          this.stateTimer = 1.50 / spd;
         }
       } else if (this.state === 'orders_prep') {
         this.facing = player.cx >= this.cx ? 1 : -1;
         this.vx = 0;
         if (this.stateTimer <= 0) {
           const labels = ['BUY!', 'SELL!', 'ALL-IN', '+10%', 'SHORT', 'CALL!'];
-          const count = this.phase === 2 ? 5 : 3;
+          const count = this.phase === 2 ? 4 : 3;
           for (let i = 0; i < count; i++) {
             const ang = (this.facing > 0 ? -0.4 : Math.PI + 0.4) + (i - (count - 1) * 0.5) * 0.36;
             const isBuy = i % 2 === 0;
@@ -1111,14 +1111,14 @@ window.SR = window.SR || {};
               kind: 'stock_order',
               x: this.cx + this.facing * 20, y: this.cy - 14,
               vx: Math.cos(ang) * 240, vy: Math.sin(ang) * 240 - 60,
-              homingPlayer: true, homingTurn: 2.7, homingSpeed: this.phase === 2 ? 265 : 235,
+              homingPlayer: true, homingTurn: 2.15, homingSpeed: this.phase === 2 ? 235 : 210,
               label: labels[(this.patternIndex + i) % labels.length],
-              r: 12, life: 2.9, color: isBuy ? '#ff7088' : '#52f29b', deflectable: true
+              r: 12, life: 2.5, color: isBuy ? '#ff7088' : '#52f29b', deflectable: true
             });
           }
           SR.audio.castMagic();
           this.state = 'idle';
-          this.stateTimer = 1.10 / spd;
+          this.stateTimer = 1.54 / spd;
         }
       }
       this.moveArenaBody(dt, level, false);
@@ -1141,9 +1141,9 @@ window.SR = window.SR || {};
           } else if (this.state === 'stack_overflow') {
             this.typingAnim = 1.0;
             this.stateTimer = 1.35;
-            const cnt = this.phase === 2 ? 7 : 5;
+            const cnt = this.phase === 2 ? 5 : 4;
             const dropLabels = ['404 Not Found', '429', 'Not Enough Tokens', '500', 'NULL', 'NaN', 'OOM', 'SEGFAULT', 'BUG!'];
-            this.queueSkyDrops(cnt, 'error_drop', dropLabels, ['#8ef7c8', '#ff88a8'], 0.84, 575);
+            this.queueSkyDrops(cnt, 'error_drop', dropLabels, ['#8ef7c8', '#ff88a8'], 0.92, 575);
             SR.audio.bossAlert();
             const errCalls = ['STACK OVERFLOW!!', '404 Not Found!!', '429 Too Many Requests!!'];
             SR.particles.spawnText(this.cx, this.y - 22, errCalls[this.patternIndex % errCalls.length], '#ff88a8', 1.18);
@@ -1157,31 +1157,31 @@ window.SR = window.SR || {};
         this.vx = 0;
         if (this.stateTimer <= 0) {
           const snippets = ['{ }', '01', '404', '429', 'NULL', 'NaN', 'No Tokens', 'ERR', '=>', '!='];
-          const count = this.phase === 2 ? 6 : 4;
+          const count = this.phase === 2 ? 5 : 3;
           for (let i = 0; i < count; i++) {
             const ang = (this.facing > 0 ? -0.35 : Math.PI + 0.35) + (i - (count - 1) * 0.5) * 0.34;
             game.enemyProjectiles.push({
               kind: 'code', x: this.cx + this.facing * 24, y: this.cy - 10,
               vx: Math.cos(ang) * 260, vy: Math.sin(ang) * 260 - 55,
-              homingPlayer: true, homingTurn: 2.75, homingSpeed: this.phase === 2 ? 270 : 240,
+              homingPlayer: true, homingTurn: 2.15, homingSpeed: this.phase === 2 ? 240 : 215,
               label: snippets[(this.patternIndex + i) % snippets.length],
-              r: 12, life: 3.0, color: '#7ef7b8', deflectable: true
+              r: 12, life: 2.55, color: '#7ef7b8', deflectable: true
             });
           }
           SR.audio.castMagic();
           this.state = 'idle';
-          this.stateTimer = 1.08 / spd;
+          this.stateTimer = 1.36 / spd;
         }
       } else if (this.state === 'stack_overflow') {
         this.vx = 0;
         if (this.stateTimer <= 0) {
           // Fires an aimed fan of API/Runtime error bolts to pressure alongside the sky drops!
           const errBolts = ['404', '429', '500', 'No Tokens', 'ERR', 'NULL', 'NaN'];
-          const count = this.phase === 2 ? 5 : 3;
+          const count = this.phase === 2 ? 4 : 3;
           const baseAng = Math.atan2(player.cy - this.cy, player.cx - this.cx);
           for (let i = 0; i < count; i++) {
             const ang = baseAng + (i - (count - 1) * 0.5) * 0.24;
-            const pSpd = this.phase === 2 ? 415 : 365;
+            const pSpd = this.phase === 2 ? 385 : 340;
             game.enemyProjectiles.push({
               kind: 'code', x: this.cx + this.facing * 20, y: this.cy - 8,
               vx: Math.cos(ang) * pSpd, vy: Math.sin(ang) * pSpd,
@@ -1191,18 +1191,18 @@ window.SR = window.SR || {};
           }
           SR.audio.shoot(true);
           this.state = 'idle';
-          this.stateTimer = 1.06 / spd;
+          this.stateTimer = 1.36 / spd;
         }
       } else if (this.state === 'coffee_prep') {
         this.facing = player.cx >= this.cx ? 1 : -1;
         this.vx = 0;
         if (this.stateTimer <= 0) {
-          // Fast Long-Range Caffeinated Dash + 3-4 bouncing hot coffee mugs!
+          // Fast Long-Range Caffeinated Dash + 2-3 bouncing hot coffee mugs!
           this.state = 'coffee_dash';
           this.stateTimer = 1.3;
           this.trailTick = 0.24;
-          this.vx = this.facing * (this.phase === 2 ? 780 : 670);
-          const mugVxs = this.phase === 2 ? [-270, -90, 90, 270] : [-230, 0, 230];
+          this.vx = this.facing * (this.phase === 2 ? 700 : 610);
+          const mugVxs = this.phase === 2 ? [-250, 0, 250] : [-200, 200];
           mugVxs.forEach((mvx) => {
             game.enemyProjectiles.push({
               kind: 'boba', x: this.cx, y: this.y + 10,
@@ -1215,7 +1215,7 @@ window.SR = window.SR || {};
       } else if (this.state === 'coffee_dash') {
         this.trailTick -= dt;
         if (this.trailTick <= 0) {
-          this.trailTick = this.phase === 2 ? 0.25 : 0.34;
+          this.trailTick = this.phase === 2 ? 0.32 : 0.42;
           game.enemyProjectiles.push({
             kind: 'boba', x: this.cx, y: this.y + 8,
             vx: -this.facing * 115, vy: -350, gravity: 780, bounces: 1,
@@ -1227,7 +1227,7 @@ window.SR = window.SR || {};
           this.spawnShockwaves(game, '#8ef7c8', this.phase === 2 ? 400 : 345, 15, 1.65, floorY - 14);
           this.vx = 0;
           this.state = 'idle';
-          this.stateTimer = 1.06 / spd;
+          this.stateTimer = 1.36 / spd;
         }
       }
       this.moveArenaBody(dt, level, false);
@@ -1255,7 +1255,7 @@ window.SR = window.SR || {};
           } else if (this.state === 'dumbbell_prep') {
             this.sportMode = 'workout';
             this.stateTimer = 0.50 / spd;
-            this.barrageLeft = this.phase === 2 ? 5 : 3;
+            this.barrageLeft = this.phase === 2 ? 4 : 3;
             this.barrageTick = 0;
             SR.particles.spawnText(this.cx, this.y - 24, '啞鈴連發特訓！！', '#ff9fd6', 1.15);
           } else if (this.state === 'cooking_prep') {
@@ -1273,7 +1273,7 @@ window.SR = window.SR || {};
         this.facing = player.cx >= this.cx ? 1 : -1;
         this.vx = 0;
         if (this.stateTimer <= 0) {
-          // 1) Balanced Multi-Directional Sneeze Blast (6-8 items)
+          // 1) Balanced Multi-Directional Sneeze Blast (5-6 items)
           this.swingAnim = 0.4;
           this.vx = -this.facing * 150;
           if (SR.audio.sneeze) SR.audio.sneeze(); else SR.audio.slash(3);
@@ -1283,13 +1283,13 @@ window.SR = window.SR || {};
           });
 
           const sneezeKinds = ['sneeze', 'tissue', 'mask', 'eraser', 'pencil'];
-          const count = this.phase === 2 ? 8 : 6;
+          const count = this.phase === 2 ? 6 : 5;
           const baseAng = Math.atan2(player.cy - (this.cy - 14), player.cx - this.cx);
           const spread = this.phase === 2 ? 2.15 : 1.75;
           for (let i = 0; i < count; i++) {
             const ang = baseAng - spread * 0.5 + (spread / (count - 1)) * i;
             const sk = sneezeKinds[i % sneezeKinds.length];
-            const pSpd = (sk === 'sneeze' ? 420 : sk === 'pencil' ? 395 : 310) * (this.phase === 2 ? 1.06 : 1.0);
+            const pSpd = (sk === 'sneeze' ? 375 : sk === 'pencil' ? 355 : 280) * (this.phase === 2 ? 1.05 : 1.0);
             game.enemyProjectiles.push({
               kind: sk,
               x: this.cx + this.facing * 24, y: this.cy - 14,
@@ -1302,14 +1302,14 @@ window.SR = window.SR || {};
           }
 
           // 2) ITEMS FALLING FROM THE SKY (tissues, masks, erasers raining across arena!)
-          const skyCnt = this.phase === 2 ? 6 : 4;
+          const skyCnt = this.phase === 2 ? 4 : 3;
           this.queueSkyDrops(
-            skyCnt, 'sky_sneeze', null, ['#d8fbff', '#ffffff', '#ffbae0'], 0.80, 425,
+            skyCnt, 'sky_sneeze', null, ['#d8fbff', '#ffffff', '#ffbae0'], 0.92, 425,
             (idx) => ({ itemType: ['tissue', 'mask', 'eraser', 'pencil'][idx % 4] })
           );
 
           this.state = 'idle';
-          this.stateTimer = 1.10 / spd;
+          this.stateTimer = 1.42 / spd;
         }
       } else if (this.state === 'dumbbell_prep') {
         this.facing = player.cx >= this.cx ? 1 : -1;
@@ -1325,7 +1325,7 @@ window.SR = window.SR || {};
         this.barrageTick -= dt;
         if (this.barrageTick <= 0 && this.barrageLeft > 0) {
           this.barrageLeft--;
-          this.barrageTick = this.phase === 2 ? 0.19 : 0.24;
+          this.barrageTick = this.phase === 2 ? 0.26 : 0.31;
           this.swingAnim = 0.22;
           const sx = this.cx + this.facing * 18;
           const sy = this.cy - 22;
@@ -1341,7 +1341,7 @@ window.SR = window.SR || {};
             vx: SR.clamp(vel.vx, -860, 860),
             vy: SR.clamp(vel.vy, -760, 420),
             gravity: g,
-            bounces: 1,
+            bounces: 0,
             r: 13,
             life: 2.2,
             color: '#ff7eb6',
@@ -1351,7 +1351,7 @@ window.SR = window.SR || {};
         }
         if (this.barrageLeft <= 0 && this.barrageTick <= 0) {
           this.state = 'idle';
-          this.stateTimer = 1.12 / spd;
+          this.stateTimer = 1.45 / spd;
         }
       } else if (this.state === 'cooking_prep') {
         // BUBBLING HOTPOT ANIMATION with rising broth steam & spicy sparks!
@@ -1369,7 +1369,7 @@ window.SR = window.SR || {};
           SR.particles.spawnText(this.cx + this.facing * 20, this.y - 26, '滾燙火鍋上桌！！', '#ff8870', 1.32);
 
           const hotpotItems = ['hotpot_pot', 'meat_slice', 'fishball', 'tofu_cube', 'enoki', 'shrimp'];
-          const count = this.phase === 2 ? 6 : 4;
+          const count = this.phase === 2 ? 5 : 3;
           for (let i = 0; i < count; i++) {
             const frac = (i / (count - 1)) - 0.5;
             const aimX = (player.cx - this.cx) * (0.95 + frac * 0.75);
@@ -1383,7 +1383,7 @@ window.SR = window.SR || {};
               y: this.cy - 16,
               vx, vy,
               gravity: 760,
-              bounces: 1,
+              bounces: 0,
               r: item === 'hotpot_pot' ? 14 : 12,
               life: 2.8,
               color: '#ff8870',
@@ -1392,14 +1392,14 @@ window.SR = window.SR || {};
           }
 
           // 2) HOTPOT INGREDIENTS RAINING FROM THE SKY! (火鍋、肉片、魚板丸子、嫩豆腐、金針菇、鮮蝦)
-          const foodRainCnt = this.phase === 2 ? 6 : 4;
+          const foodRainCnt = this.phase === 2 ? 4 : 3;
           this.queueSkyDrops(
-            foodRainCnt, 'sky_food', null, ['#ff8870', '#ffe07d', '#ffffff'], 0.82, 435,
+            foodRainCnt, 'sky_food', null, ['#ff8870', '#ffe07d', '#ffffff'], 0.92, 435,
             (idx) => ({ foodType: hotpotItems[idx % hotpotItems.length] })
           );
 
           this.state = 'idle';
-          this.stateTimer = 1.12 / spd;
+          this.stateTimer = 1.45 / spd;
         }
       } else if (this.state === 'workout_dash_prep') {
         this.facing = player.cx >= this.cx ? 1 : -1;
@@ -1410,16 +1410,16 @@ window.SR = window.SR || {};
           this.stateTimer = 1.3;
           this.trailTick = 0.25;
           this.swingAnim = 1.1;
-          this.vx = this.facing * (this.phase === 2 ? 810 : 710);
+          this.vx = this.facing * (this.phase === 2 ? 710 : 620);
           SR.audio.slide();
         }
       } else if (this.state === 'workout_dash') {
         this.trailTick -= dt;
         if (this.trailTick <= 0) {
-          this.trailTick = this.phase === 2 ? 0.27 : 0.36;
+          this.trailTick = this.phase === 2 ? 0.36 : 0.46;
           game.enemyProjectiles.push({
             kind: 'dumbbell', x: this.cx, y: this.cy - 8,
-            vx: -this.facing * 105, vy: -330, gravity: 720, bounces: 1,
+            vx: -this.facing * 105, vy: -330, gravity: 720, bounces: 0,
             r: 12, life: 1.9, color: '#ff7eb6', deflectable: true
           });
         }
@@ -1434,10 +1434,10 @@ window.SR = window.SR || {};
             player.takeDamage(1, this.facing, game, false, 'dash');
           }
           const floorY = this.getArenaFloorY(level);
-          this.spawnShockwaves(game, '#ff9fd6', this.phase === 2 ? 405 : 350, 15, 1.65, floorY - 14);
+          this.spawnShockwaves(game, '#ff9fd6', this.phase === 2 ? 360 : 315, 15, 1.65, floorY - 14);
           this.vx = 0;
           this.state = 'idle';
-          this.stateTimer = 1.08 / spd;
+          this.stateTimer = 1.42 / spd;
         }
       }
       this.moveArenaBody(dt, level, false);

@@ -141,7 +141,7 @@ window.SR = window.SR || {};
       const bottom = this.y + this.h;
       this.h = this.slideH;
       this.y = bottom - this.h;
-      const slowMult = this.slowTimer > 0 ? 0.78 : 1.0;
+      const slowMult = this.slowTimer > 0 ? 0.62 : 1.0;
       this.vx = this.facing * this.def.slideSpeed * slowMult;
       this.squashX = 1.32;
       this.squashY = 0.72;
@@ -272,7 +272,7 @@ window.SR = window.SR || {};
         this.jumpBuffer = 0.14;
       }
 
-      const speedMult = this.slowTimer > 0 ? 0.68 : 1.0;
+      const speedMult = this.slowTimer > 0 ? 0.48 : 1.0;
       this.updateHorizontalMotion(dt, move, speedMult, input, level);
       this.updateJumpAndGravity(dt, input, level);
       this.handleCombatInputs(input, level, game);
@@ -316,7 +316,7 @@ window.SR = window.SR || {};
         vx: dirX * 720,
         vy: dirY * 720,
         r: 38,
-        dmg: 56,
+        dmg: 46,
         pierce: 6,
         hitIds: new Set(),
         life: 0.68,
@@ -368,7 +368,7 @@ window.SR = window.SR || {};
           const leadX = this.cx + dirX * 24;
           const leadY = this.shoulderY + dirY * 24;
           const surgeBox = { x: leadX - 42, y: leadY - 38, w: 84, h: 76 };
-          game.applyPlayerMelee(surgeBox, 26, this.facing, true);
+          game.applyPlayerMelee(surgeBox, 22, this.facing, true);
         }
 
         if (this.bladeSurgeTimer <= 0) {
@@ -616,7 +616,7 @@ window.SR = window.SR || {};
           vx: Math.cos(ang) * 880,
           vy: Math.sin(ang) * 880,
           r: 11.5,
-          dmg: 30,
+          dmg: 24,
           pierce: 3,
           hitIds: new Set(),
           life: 0.88,
@@ -643,7 +643,7 @@ window.SR = window.SR || {};
           vx: Math.cos(ang) * 900,
           vy: Math.sin(ang) * 900,
           r: 12,
-          dmg: 22,
+          dmg: 18,
           pierce: 4,
           hitIds: new Set(),
           life: 0.95,
@@ -659,7 +659,7 @@ window.SR = window.SR || {};
         vx: Math.cos(baseAng) * 980,
         vy: Math.sin(baseAng) * 980,
         r: 34,
-        dmg: 74,
+        dmg: 60,
         pierce: 10,
         hitIds: new Set(),
         life: 0.98,
@@ -850,7 +850,7 @@ window.SR = window.SR || {};
             vx: Math.cos(ang) * 540,
             vy: Math.sin(ang) * 540,
             r: 12,
-            dmg: 20,
+            dmg: 16,
             pierce: 3,
             hitIds: new Set(),
             life: 1.35,
@@ -885,7 +885,7 @@ window.SR = window.SR || {};
         SR.particles.spawnText(this.cx, this.y - 26, '✦ CELESTIAL STARFALL ✦', '#8ce8ff', 1.35);
 
         const ultBox = { x: this.cx - 240, y: this.cy - 200, w: 480, h: 380 };
-        game.applyPlayerMelee(ultBox, 64, this.facing, true);
+        game.applyPlayerMelee(ultBox, 52, this.facing, true);
 
         // 3 aimed directional 劍氣 waves along aimAngle
         const muzzle = this.getWeaponMuzzle(baseAng, 30);
@@ -898,7 +898,7 @@ window.SR = window.SR || {};
             vx: Math.cos(ang) * 680,
             vy: Math.sin(ang) * 680,
             r: 36,
-            dmg: 44,
+            dmg: 36,
             pierce: 6,
             hitIds: new Set(),
             life: 0.65,
@@ -920,7 +920,7 @@ window.SR = window.SR || {};
             vx: this.facing * 45,
             vy: 780,
             r: 32,
-            dmg: 62,
+            dmg: 50,
             pierce: 8,
             hitIds: new Set(),
             life: 1.35,
@@ -949,7 +949,7 @@ window.SR = window.SR || {};
         SR.particles.spawnText(this.cx, this.y - 26, '✦ THUNDERBOLT STORM ✦', '#ffe84d', 1.35);
 
         const novaBox = { x: this.cx - 220, y: this.cy - 200, w: 440, h: 380 };
-        game.applyPlayerMelee(novaBox, 42, this.facing, true);
+        game.applyPlayerMelee(novaBox, 34, this.facing, true);
 
         // Centerpiece Mega Lightning Beam straight along aimAngle!
         game.playerProjectiles.push({
@@ -959,7 +959,7 @@ window.SR = window.SR || {};
           vx: Math.cos(baseAng) * 880,
           vy: Math.sin(baseAng) * 880,
           r: 26,
-          dmg: 84,
+          dmg: 68,
           pierce: 10,
           hitIds: new Set(),
           life: 0.95,
@@ -980,7 +980,7 @@ window.SR = window.SR || {};
             vx: Math.cos(ang) * 420,
             vy: Math.sin(ang) * 420,
             r: 13.5,
-            dmg: 22,
+            dmg: 18,
             pierce: 2,
             hitIds: new Set(),
             life: 1.65,
