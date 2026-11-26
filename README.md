@@ -3,7 +3,7 @@
 A pastel-fantasy 2D side-scrolling action platformer across 5 whimsical realms — playable directly in your browser.
 
 ## Play Online · 線上遊玩
-- **Play Now (with Global Leaderboard · 含線上全球排行榜):** https://skyhuang1208.github.io/starlight-reverie/
+- **Play Now:** https://skyhuang1208.github.io/starlight-reverie/
 - **Play Offline:** Clone/download this repo and open `index.html` in any modern browser.
 
 ---
