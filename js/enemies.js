@@ -36,7 +36,7 @@ window.SR = window.SR || {};
       if (cx >= s.x + 10 && cx <= s.x + s.w - 10) {
         const dyFromPlayer = Math.abs(s.y - desiredBottomY);
         const dyFromSelf = Math.abs(s.y - currentBottomY);
-        if (dyFromSelf <= 170) {
+        if (dyFromSelf <= 215) {
           const score = dyFromPlayer + dyFromSelf * 0.25;
           if (score < bestScore) {
             bestScore = score;
@@ -49,7 +49,7 @@ window.SR = window.SR || {};
       if (cx >= bar.x + 8 && cx <= bar.x + bar.w - 8) {
         const dyFromPlayer = Math.abs(bar.y - desiredBottomY);
         const dyFromSelf = Math.abs(bar.y - currentBottomY);
-        if (dyFromSelf <= 170) {
+        if (dyFromSelf <= 215) {
           const score = dyFromPlayer + dyFromSelf * 0.25;
           if (score < bestScore) {
             bestScore = score;
@@ -105,6 +105,9 @@ window.SR = window.SR || {};
       this.trickCount = 0;
       this.boardSpin = 0;
       this.heldItem = null;
+      this.leapCd = 1.0;
+      this.leapingToPlain = false;
+      this.dropThroughBarTimer = 0;
     }
 
     get cx() { return this.x + this.w * 0.5; }
@@ -162,7 +165,8 @@ window.SR = window.SR || {};
       if (fn) fn.call(this, effDt, player, dx, dy, dist, level, game);
     }
 
-    moveGround(dt, level) {
+    moveGround(dt, level, game = null) {
+      if (this.dropThroughBarTimer > 0) this.dropThroughBarTimer -= dt;
       this.vy = Math.min(820, this.vy + 1400 * dt);
       this.x += this.vx * dt;
       for (const s of level.solids) {
@@ -188,7 +192,7 @@ window.SR = window.SR || {};
           }
         }
       }
-      if (!this.onGround && this.vy >= 0) {
+      if (!this.onGround && this.vy >= 0 && this.dropThroughBarTimer <= 0) {
         for (const bar of level.bars) {
           if (this.x + this.w > bar.x + 4 && this.x < bar.x + bar.w - 4) {
             if (prevBottom <= bar.y + 10 && this.y + this.h >= bar.y) {
@@ -201,10 +205,84 @@ window.SR = window.SR || {};
         }
       }
 
+      if (this.leapingToPlain && this.onGround && this.vy >= 0) {
+        this.leapingToPlain = false;
+        const surf = findLandingSurface(level, this.x, this.w, this.y + this.h, this.y + this.h);
+        if (surf && Math.abs(surf.y - (this.y + this.h)) <= 8) {
+          const minBound = (this.isBossSummon && game && game.activeArena) ? (game.activeArena.minX + 16) : 60;
+          const maxBound = (this.isBossSummon && game && game.activeArena) ? (game.activeArena.maxX - 16) : (level.width - 60);
+          this.patrolMin = SR.clamp(Math.min(surf.minX, this.x), minBound, maxBound);
+          this.patrolMax = SR.clamp(Math.max(surf.maxX, this.x + this.w), minBound, maxBound);
+        }
+      }
+
       if (this.y > 720) {
         this.y = 480;
         this.vy = 0;
       }
+    }
+
+    tryChasePlatformJump(player, dx, dy, dist, level, game) {
+      if (!this.isElite || !this.onGround || this.leapCd > 0 || dist > 560) return false;
+
+      // Drop through an elevated one-way bar if the player dropped significantly below
+      const footY = this.y + this.h;
+      const standingOnSolid = level.solids.some(
+        (s) => s.kind !== 'wall' && s.kind !== 'arch' && this.x + this.w > s.x + 4 && this.x < s.x + s.w - 4 && Math.abs(footY - s.y) <= 6
+      );
+      if (!standingOnSolid && dy > 85) {
+        this.dropThroughBarTimer = 0.28;
+        this.onGround = false;
+        this.vy = 60;
+        this.leapCd = 1.5;
+        return true;
+      }
+
+      const wantElevationJump = Math.abs(dy) > 44 && Math.abs(dy) < 215;
+      const hitEdgeChasing = (dx > 55 && this.x + this.w >= this.patrolMax - 36) || (dx < -55 && this.x <= this.patrolMin + 36);
+      if (!wantElevationJump && !hitEdgeChasing) return false;
+
+      const minBound = (this.isBossSummon && game && game.activeArena) ? (game.activeArena.minX + 16) : 60;
+      const maxBound = (this.isBossSummon && game && game.activeArena) ? (game.activeArena.maxX - this.w - 16) : (level.width - this.w - 60);
+      const stepDir = dx >= 0 ? 1 : -1;
+      const candidates = [
+        player.cx - this.w * 0.5,
+        this.x + stepDir * 170,
+        this.x + stepDir * 240
+      ];
+
+      for (const rawTx of candidates) {
+        const tx = SR.clamp(rawTx, minBound, maxBound);
+        if (Math.abs(tx - this.x) > 420) continue;
+        const surf = findLandingSurface(level, tx, this.w, player.y + player.h, footY);
+        if (!surf) continue;
+        const isDifferentSurface = Math.abs(surf.y - footY) > 16 || tx < this.patrolMin - 8 || tx + this.w > this.patrolMax + 8;
+        if (!isDifferentSurface) continue;
+        const destY = surf.y - this.h;
+        const destBox = { x: tx, y: destY, w: this.w, h: this.h };
+        if (level.solids.some((s) => SR.aabb(destBox, s))) continue;
+
+        const dxJump = tx - this.x;
+        const dyJump = destY - this.y;
+        const peakHeight = Math.max(46, -dyJump + 54);
+        const jumpVy = -SR.clamp(Math.sqrt(2 * 1400 * peakHeight), 460, 760);
+        const tUp = -jumpVy / 1400;
+        const dropDist = Math.max(12, peakHeight + dyJump);
+        const tFlight = tUp + Math.sqrt(2 * dropDist / 1400);
+
+        this.vx = SR.clamp(dxJump / Math.max(0.28, tFlight), -430, 430);
+        this.vy = jumpVy;
+        this.onGround = false;
+        this.leapingToPlain = true;
+        this.facing = stepDir;
+        this.leapCd = 2.4 / this.spdScale;
+        this.patrolMin = SR.clamp(Math.min(surf.minX, tx), minBound, maxBound + this.w);
+        this.patrolMax = SR.clamp(Math.max(surf.maxX, tx + this.w), minBound, maxBound + this.w);
+        if (SR.audio.jump) SR.audio.jump(false);
+        SR.particles.spawnRing(this.cx, footY - 4, '#ffe58f', 30, 0.24);
+        return true;
+      }
+      return false;
     }
   }
 
@@ -541,12 +619,21 @@ window.SR = window.SR || {};
     // Throws 珍奶, 雞排, 肉丸子串, 臭豆腐, 炒麵, 炒飯!
     delivery_scooter(dt, player, dx, dy, dist, level, game) {
       if (this.dashCd > 0) this.dashCd -= dt;
+      if (this.leapCd > 0) this.leapCd -= dt;
       this.stateTimer -= dt;
+      if (this.leapingToPlain) {
+        this.moveGround(dt, level, game);
+        return;
+      }
 
       if (this.state === 'patrol') {
         this.vx = this.facing * 135 * this.spdScale;
         if (this.x < this.patrolMin) this.facing = 1;
         if (this.x + this.w > this.patrolMax) this.facing = -1;
+        if (this.tryChasePlatformJump(player, dx, dy, dist, level, game)) {
+          this.moveGround(dt, level, game);
+          return;
+        }
         if (this.dashCd <= 0 && dist < 480 && Math.abs(dy) < 170) {
           this.facing = dx >= 0 ? 1 : -1;
           this.state = 'rev_windup';
@@ -592,20 +679,29 @@ window.SR = window.SR || {};
           this.facing = dx >= 0 ? 1 : -1;
         }
       }
-      this.moveGround(dt, level);
+      this.moveGround(dt, level, game);
     },
 
     // 小頭目 #3: 滑板柯基 (Skateboarding Corgi — Skate Tricks + Bark Sound Wave!)
     corgi_skater(dt, player, dx, dy, dist, level, game) {
       if (this.dashCd > 0) this.dashCd -= dt;
       if (this.barkCd > 0) this.barkCd -= dt;
+      if (this.leapCd > 0) this.leapCd -= dt;
       this.stateTimer -= dt;
+      if (this.leapingToPlain) {
+        this.moveGround(dt, level, game);
+        return;
+      }
 
       if (this.state === 'patrol') {
         this.boardSpin *= 0.85;
         this.vx = this.facing * 140 * this.spdScale;
         if (this.x < this.patrolMin) this.facing = 1;
         if (this.x + this.w > this.patrolMax) this.facing = -1;
+        if (this.tryChasePlatformJump(player, dx, dy, dist, level, game)) {
+          this.moveGround(dt, level, game);
+          return;
+        }
         if (this.dashCd <= 0 && dist < 440 && Math.abs(dy) < 160) {
           this.facing = dx >= 0 ? 1 : -1;
           this.state = 'kickflip_windup';
@@ -699,14 +795,19 @@ window.SR = window.SR || {};
           this.facing = dx >= 0 ? 1 : -1;
         }
       }
-      this.moveGround(dt, level);
+      this.moveGround(dt, level, game);
     },
 
     // 小頭目 #4: 亂丟貓咪 (UPGRADED — Faster, More Frequent, 4–5 Items + Meow! Sound Wave!)
     cat_thrower(dt, player, dx, dy, dist, level, game) {
       if (this.dashCd > 0) this.dashCd -= dt;
       if (this.barkCd > 0) this.barkCd -= dt;
+      if (this.leapCd > 0) this.leapCd -= dt;
       this.stateTimer -= dt;
+      if (this.leapingToPlain) {
+        this.moveGround(dt, level, game);
+        return;
+      }
 
       if (this.state === 'patrol') {
         this.heldItem = null;
@@ -717,6 +818,10 @@ window.SR = window.SR || {};
         if (this.x < this.patrolMin && this.vx < 0) this.vx = 0;
         if (this.x + this.w > this.patrolMax && this.vx > 0) this.vx = 0;
 
+        if (this.tryChasePlatformJump(player, dx, dy, dist, level, game)) {
+          this.moveGround(dt, level, game);
+          return;
+        }
         if (this.dashCd <= 0 && dist < 580 && Math.abs(dy) < 250) {
           this.state = 'grab_windup';
           this.stateTimer = 0.28; // Much quicker windup!
@@ -789,7 +894,7 @@ window.SR = window.SR || {};
           this.dashCd = 1.05 / this.spdScale; // Throws much more frequently!
         }
       }
-      this.moveGround(dt, level);
+      this.moveGround(dt, level, game);
     }
   };
 
