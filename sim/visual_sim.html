@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Starlight Reverie · Live Visual Simulation</title>
+  <style>
+    :root {
+      --bg: #120c26;
+      --panel: rgba(31, 22, 62, 0.94);
+      --border: rgba(255, 220, 248, 0.34);
+      --gold: #ffe58f;
+      --mint: #9cf5e3;
+      --pink: #ff9fd6;
+      --text: #fff5fc;
+      --muted: rgba(235, 222, 255, 0.72);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: radial-gradient(circle at 50% 0%, #2a1a56, #0d081c 72%);
+      color: var(--text);
+      font-family: "Quicksand", "Microsoft JhengHei", system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 16px 24px;
+      gap: 10px;
+    }
+    .sim-toolbar {
+      width: min(1200px, 100%);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 9px 14px;
+      border-radius: 16px;
+      background: var(--panel);
+      border: 1.5px solid var(--border);
+      box-shadow: 0 10px 28px rgba(8, 4, 24, 0.55);
+    }
+    .sim-title-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 800;
+      font-size: 14px;
+      color: var(--gold);
+    }
+    .sim-ver {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--muted);
+    }
+    .sim-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    .sim-controls label {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+    }
+    select, button {
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: 10px;
+      border: 1.5px solid var(--border);
+      background: rgba(18, 12, 42, 0.85);
+      color: var(--text);
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+    button:hover { border-color: var(--gold); }
+    button.primary {
+      background: linear-gradient(135deg, #ffe58f, #ff9fd6);
+      color: #24133e;
+      border-color: #fff6d6;
+      font-weight: 800;
+    }
+    button.active-spd {
+      background: rgba(156, 245, 227, 0.22);
+      border-color: var(--mint);
+      color: #d8fff7;
+    }
+    .sim-telemetry {
+      width: min(1200px, 100%);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 7px 14px;
+      border-radius: 14px;
+      background: rgba(22, 16, 48, 0.86);
+      border: 1px solid rgba(255, 220, 248, 0.24);
+      font-size: 12.5px;
+      font-weight: 700;
+    }
+    .tel-item { display: inline-flex; align-items: center; gap: 6px; }
+    .tel-val { color: var(--gold); font-variant-numeric: tabular-nums; }
+    .tel-mint { color: var(--mint); font-variant-numeric: tabular-nums; }
+    .tel-pink { color: var(--pink); font-variant-numeric: tabular-nums; }
+    .stage-wrap {
+      position: relative;
+      width: min(1200px, 100%);
+      aspect-ratio: 1200 / 680;
+      border-radius: 18px;
+      overflow: hidden;
+      border: 2px solid var(--border);
+      box-shadow: 0 20px 50px rgba(6, 3, 18, 0.72);
+      background: #0d081c;
+    }
+    #sim-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .result-banner {
+      position: absolute;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 8px 20px;
+      border-radius: 999px;
+      font-weight: 800;
+      font-size: 15px;
+      background: rgba(20, 12, 46, 0.9);
+      border: 2px solid var(--gold);
+      color: var(--gold);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+      pointer-events: none;
+    }
+    .result-banner.loss { border-color: #ff7a9e; color: #ffb8cc; }
+    .hidden { display: none !important; }
+    .batch-panel {
+      width: min(1200px, 100%);
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: rgba(16, 11, 36, 0.94);
+      border: 1.5px solid var(--border);
+      font-family: Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.48;
+      white-space: pre-wrap;
+      color: #dffef7;
+    }
+  </style>
+</head>
+<body>
+  <div class="sim-toolbar">
+    <div class="sim-title-group">
+      <span>✦ Starlight Reverie · Live Visual Simulation</span>
+      <span class="sim-ver" id="sim-ver">v1.4.0</span>
+    </div>
+    <div class="sim-controls">
+      <label>Stage
+        <select id="sel-stage"></select>
+      </label>
+      <label>Hero
+        <select id="sel-hero">
+          <option value="magic">✨ Luna (Magic)</option>
+          <option value="gun" selected>🔫 Pip (Gun)</option>
+          <option value="blade">⚔️ Lyra (Blade)</option>
+        </select>
+      </label>
+      <label>Arena
+        <select id="sel-arena">
+          <option value="finalboss" selected>Final Boss</option>
+          <option value="midboss">Mid-Boss</option>
+        </select>
+      </label>
+      <button type="button" data-spd="1" class="spd-btn active-spd">1x</button>
+      <button type="button" data-spd="2" class="spd-btn">2x</button>
+      <button type="button" data-spd="4" class="spd-btn">4x</button>
+      <button type="button" id="btn-play-pause">⏸ Pause</button>
+      <button type="button" id="btn-restart" class="primary">↻ Restart</button>
+      <label><input type="checkbox" id="chk-loop" checked /> Auto-Loop</label>
+      <button type="button" id="btn-batch">📊 Run 150-Fight Batch</button>
+    </div>
+  </div>
+
+  <div class="sim-telemetry">
+    <div class="tel-item">Hero HP: <span class="tel-mint" id="tel-hero-hp">6 / 6</span></div>
+    <div class="tel-item">Boss: <span class="tel-pink" id="tel-boss-hp">—</span></div>
+    <div class="tel-item">Skill Charges: <span class="tel-val" id="tel-charges">2 / 2</span></div>
+    <div class="tel-item">Ult CD: <span class="tel-val" id="tel-ult">READY</span></div>
+    <div class="tel-item">Enemy Projectiles: <span class="tel-pink" id="tel-projs">0</span></div>
+    <div class="tel-item">Time: <span class="tel-val" id="tel-time">0.0s</span></div>
+    <div class="tel-item">Record: <span class="tel-mint" id="tel-record">0W - 0L</span></div>
+  </div>
+
+  <div class="stage-wrap">
+    <canvas id="sim-canvas" width="1200" height="680"></canvas>
+    <div id="result-banner" class="result-banner hidden">✦ VICTORY ✦</div>
+  </div>
+
+  <pre id="batch-output" class="batch-panel hidden"></pre>
+
+  <script>
+    window.SR = window.SR || {};
+    SR.audio = {
+      init() {}, play() {}, jump() {}, land() {}, shoot() {}, castMagic() {},
+      slash() {}, ultimate() {}, hit() {}, playerHurt() {}, enemyDefeat() {},
+      pickup() {}, checkpoint() {}, bossAlert() {}, victory() {}, deflect() {},
+      slide() {}, special() {}, setBgmMode() {}, stopBgm() {}, toggleMute() { return false; },
+      lightningCharge() {}, lightningStrike() {}, katanaGlint() {}, bark() {}, meow() {},
+      stockBell() {}, sneeze() {}, wokSizzle() {}, bounce() {}
+    };
+  </script>
+  <script src="../js/config.js"></script>
+  <script src="../js/particles.js"></script>
+  <script src="../js/weather.js"></script>
+  <script src="../js/combat.js"></script>
+  <script src="../js/player.js"></script>
+  <script src="../js/enemies.js"></script>
+  <script src="../js/bosses.js"></script>
+  <script src="../js/level.js"></script>
+  <script src="../js/render-world.js"></script>
+  <script src="../js/render-entities.js"></script>
+
+  <script>
+    (function () {
+      const DT = 1 / 60;
+      const canvas = document.getElementById('sim-canvas');
+      const ctx = canvas.getContext('2d');
+      const selStage = document.getElementById('sel-stage');
+      const selHero = document.getElementById('sel-hero');
+      const selArena = document.getElementById('sel-arena');
+      const btnPlayPause = document.getElementById('btn-play-pause');
+      const btnRestart = document.getElementById('btn-restart');
+      const chkLoop = document.getElementById('chk-loop');
+      const btnBatch = document.getElementById('btn-batch');
+      const batchOutput = document.getElementById('batch-output');
+      const resultBanner = document.getElementById('result-banner');
+
+      document.getElementById('sim-ver').textContent = SR.GAME_VERSION || 'v1.4.0';
+
+      SR.MAPS.forEach((m, idx) => {
+        const opt = document.createElement('option');
+        opt.value = String(idx);
+        opt.textContent = `Stage ${idx + 1}: ${m.bossTitle}`;
+        if (idx === 4) opt.selected = true;
+        selStage.appendChild(opt);
+      });
+
+      let speed = 1;
+      let paused = false;
+      let wins = 0;
+      let losses = 0;
+      let game = null;
+      let botState = null;
+      let fightEnded = false;
+      let restartTimer = 0;
+
+      function createBossGame(charId, stageIdx, arenaKind) {
+        const level = SR.createLevel(stageIdx);
+        const arena = level.bossArenas[arenaKind];
+        arena.active = true;
+        const player = new SR.Player(charId, arena.minX + 180, 575);
+        let boss;
+        if (arena.bossClass === 'golem') boss = new SR.MidBoss(arena);
+        else if (arena.bossClass === 'human') boss = new SR.HumanBoss(arena);
+        else boss = new SR.FinalBoss(arena);
+
+        SR.particles.clearCombat();
+        if (SR.weather) SR.weather.reset(level.meta);
+
+        return {
+          state: 'playing',
+          time: 0,
+          level,
+          player,
+          enemies: [boss],
+          playerProjectiles: [],
+          enemyProjectiles: [],
+          activeArena: arena,
+          activeBoss: boss,
+          camX: arena.minX - 60,
+          camY: 0,
+          shakeMag: 0,
+          shakeX: 0,
+          shakeY: 0,
+          hitstop: 0,
+          combo: 0,
+          comboTimer: 0,
+          score: 0,
+          kills: 0,
+          deflectScoredCount: 0,
+          runFinalized: false,
+          aimMode: 'mouse',
+          mouse: { x: 800, y: 340, inside: true },
+          cheats: { godMode: false, onePunch: false },
+          bossDefeatedCalled: false,
+          addShake(m) { this.shakeMag = Math.max(this.shakeMag || 0, m || 0); },
+          registerHitCombo() { this.combo++; },
+          applyPlayerMelee(hitbox, dmg, facing, isHeavy) {
+            return SR.Combat.applyPlayerMelee(this, hitbox, dmg, facing, isHeavy);
+          },
+          addDeflectScore(pts) {
+            if (!this.runFinalized && this.deflectScoredCount < 10) {
+              this.deflectScoredCount++;
+              this.score += pts;
+            }
+          },
+          onEnemyKilled(e) {
+            if (e.isElite) {
+              this.level.pickups.push({
+                id: SR.nextEntityId(), x: e.cx, y: Math.min(e.y + e.h - 22, 553),
+                kind: 'heart', collected: false, bobPhase: 0
+              });
+            }
+          },
+          onBossDefeated() { this.bossDefeatedCalled = true; }
+        };
+      }
+
+      function computeBotInput(g, st) {
+        const p = g.player;
+        const boss = g.activeBoss;
+        const arena = g.activeArena;
+        const charId = p.charId;
+
+        st.strafeTimer -= DT;
+        if (st.slideCd > 0) st.slideCd -= DT;
+        if (st.jumpHold > 0) st.jumpHold -= DT;
+
+        let target = boss;
+        let bestDist = Math.hypot(boss.cx - p.cx, boss.cy - p.cy);
+        for (const e of g.enemies) {
+          if (e.dead || e === boss) continue;
+          const d = Math.hypot(e.cx - p.cx, e.cy - p.cy);
+          if (d < bestDist - 80) { bestDist = d; target = e; }
+        }
+
+        let incomingThreat = false;
+        let waveThreat = false;
+        for (const ep of g.enemyProjectiles) {
+          const d = Math.hypot(ep.x - p.cx, ep.y - p.cy);
+          if (d < 165) { incomingThreat = true; if (ep.kind === 'wave') waveThreat = true; }
+        }
+        if (SR.Combat.isEnemyDashing(boss) && Math.abs(boss.cx - p.cx) < 280) {
+          incomingThreat = true; waveThreat = true;
+        }
+
+        const idealDist = charId === 'blade' ? 115 : (charId === 'gun' ? 310 : 340);
+        const distX = target.cx - p.cx;
+        let move = 0;
+        if (Math.abs(distX) > idealDist + 55) move = Math.sign(distX);
+        else if (Math.abs(distX) < idealDist - 55) move = -Math.sign(distX);
+        else {
+          if (st.strafeTimer <= 0) { st.strafeDir *= -1; st.strafeTimer = 0.65 + Math.random() * 0.6; }
+          move = st.strafeDir;
+        }
+        if (p.x < arena.minX + 75) move = 1;
+        if (p.x + p.w > arena.maxX - 75) move = -1;
+
+        if (boss.meteors) {
+          for (const m of boss.meteors) {
+            if (!m.fired && m.warnTimer < 0.35 && Math.abs(m.x - p.cx) < 42) {
+              move = p.cx >= m.x ? 1 : -1;
+              if (p.x < arena.minX + 90) move = 1;
+              if (p.x + p.w > arena.maxX - 90) move = -1;
+            }
+          }
+        }
+
+        let jumpPressed = false;
+        if (waveThreat && (p.onGround || p.jumpsLeft > 0) && st.jumpHold <= 0) {
+          jumpPressed = true; st.jumpHold = 0.28;
+        } else if (incomingThreat && p.onGround && Math.random() < 0.08) {
+          jumpPressed = true; st.jumpHold = 0.25;
+        }
+
+        let slidePressed = false;
+        if (!waveThreat && incomingThreat && p.onGround && st.slideCd <= 0 && charId !== 'blade' && Math.random() < 0.12) {
+          slidePressed = true; st.slideCd = 0.9;
+        }
+
+        const worldMouseX = target.cx + (Math.random() - 0.5) * 20;
+        const worldMouseY = target.cy + (Math.random() - 0.5) * 16;
+        g.mouse.x = worldMouseX - g.camX;
+        g.mouse.y = worldMouseY - g.camY;
+
+        return {
+          left: move < 0, right: move > 0, up: false, down: false, aimUp: false, aimDown: false,
+          aimMode: 'mouse',
+          mouseWorldX: worldMouseX,
+          mouseWorldY: worldMouseY,
+          jumpHeld: st.jumpHold > 0, jumpPressed, downPressed: false, slidePressed, slideHeld: false,
+          attackHeld: charId !== 'blade' || Math.abs(distX) < 195 || p.comboStep > 0,
+          skillPressed: p.skillCharges > 0 && p.skillCastGap <= 0 && (charId !== 'blade' || Math.abs(distX) > 90 || incomingThreat),
+          ultimatePressed: p.ultimateTimer <= 0 && Math.hypot(boss.cx - p.cx, boss.cy - p.cy) < 620
+        };
+      }
+
+      function stepSimulation(g, st) {
+        g.time += DT;
+        if (g.shakeMag > 0.2) {
+          g.shakeX = (Math.random() - 0.5) * g.shakeMag;
+          g.shakeY = (Math.random() - 0.5) * g.shakeMag;
+          g.shakeMag *= 0.85;
+        } else {
+          g.shakeX = 0; g.shakeY = 0; g.shakeMag = 0;
+        }
+
+        const p = g.player;
+        const input = computeBotInput(g, st);
+        p.update(DT, input, g.level, g);
+
+        for (const e of g.enemies) {
+          if (e.dead) continue;
+          e.update(DT, p, g.level, g);
+          const contactBox = { x: e.x + 5, y: e.y + 5, w: e.w - 10, h: e.h - 10 };
+          if (SR.aabb(contactBox, p)) {
+            const dmgSource = SR.Combat.isEnemyDashing(e) ? 'dash' : 'contact';
+            p.takeDamage(1, p.cx >= e.cx ? 1 : -1, g, false, dmgSource);
+          }
+        }
+        for (const pk of g.level.pickups) {
+          if (!pk.collected && Math.hypot(p.cx - pk.x, p.cy - pk.y) < 34) {
+            pk.collected = true;
+            if (pk.kind === 'heart') p.hp = Math.min(p.maxHp, p.hp + 2);
+          }
+        }
+        SR.Combat.updatePlayerProjectiles(g, DT);
+        SR.Combat.updateEnemyProjectiles(g, DT);
+        if (SR.weather) SR.weather.update(DT, p, g.level, g.camX, 1200, g);
+        SR.particles.update(DT, 0);
+
+        const targetCamX = SR.clamp(g.activeArena.minX - 60, 0, g.level.width - 1200);
+        g.camX += (targetCamX - g.camX) * Math.min(1, DT * 6);
+      }
+
+      function startMatch() {
+        const stageIdx = parseInt(selStage.value, 10) || 0;
+        const charId = selHero.value || 'gun';
+        const arenaKind = selArena.value || 'finalboss';
+        game = createBossGame(charId, stageIdx, arenaKind);
+        botState = { jumpHold: 0, slideCd: 0, strafeDir: 1, strafeTimer: 0.7 };
+        fightEnded = false;
+        restartTimer = 0;
+        resultBanner.classList.add('hidden');
+      }
+
+      function updateTelemetry() {
+        if (!game) return;
+        const p = game.player;
+        const b = game.activeBoss;
+        document.getElementById('tel-hero-hp').textContent = `${Math.max(0, p.hp)} / ${p.maxHp}`;
+        document.getElementById('tel-boss-hp').textContent = `${Math.max(0, Math.round(b.hp))} / ${b.maxHp} (P${b.phase})`;
+        document.getElementById('tel-charges').textContent = `${p.skillCharges} / ${p.skillMaxCharges}`;
+        document.getElementById('tel-ult').textContent = p.ultimateTimer > 0 ? `${p.ultimateTimer.toFixed(1)}s` : 'READY';
+        document.getElementById('tel-projs').textContent = String(game.enemyProjectiles.length);
+        document.getElementById('tel-time').textContent = `${game.time.toFixed(1)}s`;
+        document.getElementById('tel-record').textContent = `${wins}W - ${losses}L`;
+      }
+
+      function frame() {
+        if (game && !paused) {
+          if (!fightEnded) {
+            for (let i = 0; i < speed; i++) {
+              stepSimulation(game, botState);
+              if (game.activeBoss.dead || game.bossDefeatedCalled) {
+                fightEnded = true;
+                wins++;
+                restartTimer = 2.0;
+                resultBanner.textContent = `✦ VICTORY in ${game.time.toFixed(1)}s (${game.player.hp} HP left) ✦`;
+                resultBanner.className = 'result-banner';
+                break;
+              }
+              if (game.player.hp <= 0) {
+                fightEnded = true;
+                losses++;
+                restartTimer = 2.0;
+                resultBanner.textContent = `☠ DEFEATED at ${game.time.toFixed(1)}s (Boss ${Math.round(game.activeBoss.hp)} HP left)`;
+                resultBanner.className = 'result-banner loss';
+                break;
+              }
+            }
+          } else if (chkLoop.checked) {
+            restartTimer -= DT;
+            if (restartTimer <= 0) startMatch();
+          }
+        }
+        if (game) {
+          SR.renderGame(ctx, game, 1200, 680);
+          updateTelemetry();
+        }
+        requestAnimationFrame(frame);
+      }
+
+      document.querySelectorAll('.spd-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          speed = parseInt(btn.dataset.spd, 10) || 1;
+          document.querySelectorAll('.spd-btn').forEach((b) => b.classList.toggle('active-spd', b === btn));
+        });
+      });
+
+      btnPlayPause.addEventListener('click', () => {
+        paused = !paused;
+        btnPlayPause.textContent = paused ? '▶ Play' : '⏸ Pause';
+      });
+      btnRestart.addEventListener('click', () => startMatch());
+      selStage.addEventListener('change', () => startMatch());
+      selHero.addEventListener('change', () => startMatch());
+      selArena.addEventListener('change', () => startMatch());
+
+      btnBatch.addEventListener('click', () => {
+        batchOutput.classList.remove('hidden');
+        const arenaKind = selArena.value || 'finalboss';
+        const heroes = ['magic', 'gun', 'blade'];
+        const lines = [`=== 150-FIGHT BATCH (${arenaKind.toUpperCase()}) ===`];
+        for (let s = 0; s < 5; s++) {
+          let stageWins = 0;
+          const parts = [];
+          for (const h of heroes) {
+            let w = 0, tSum = 0;
+            for (let tr = 0; tr < 10; tr++) {
+              const g = createBossGame(h, s, arenaKind);
+              const st = { jumpHold: 0, slideCd: 0, strafeDir: tr % 2 === 0 ? 1 : -1, strafeTimer: 0.7 };
+              for (let k = 0; k < 60 * 120; k++) {
+                stepSimulation(g, st);
+                if (g.activeBoss.dead || g.bossDefeatedCalled) { w++; break; }
+                if (g.player.hp <= 0) break;
+              }
+              tSum += g.time;
+            }
+            stageWins += w;
+            parts.push(`${h}:${w * 10}% (${(tSum / 10).toFixed(1)}s)`);
+          }
+          const bossLabel = arenaKind === 'midboss' ? SR.MAPS[s].midBossTitle : SR.MAPS[s].bossTitle;
+          lines.push(`Stage ${s + 1} (${bossLabel}) => ${Math.round(stageWins / 30 * 100)}% | ${parts.join(' | ')}`);
+        }
+        batchOutput.textContent = lines.join('\n');
+      });
+
+      startMatch();
+      requestAnimationFrame(frame);
+    })();
+  </script>
+</body>
+</html>

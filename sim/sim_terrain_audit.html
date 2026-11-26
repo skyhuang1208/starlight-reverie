@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Starlight Reverie — Terrain, Corgi Bark & Traversal Audit</title>
+</head>
+<body>
+  <canvas id="sim-canvas" width="1200" height="680"></canvas>
+  <pre id="sim-output">RUNNING...</pre>
+
+  <script>
+    window.SR = window.SR || {};
+    SR.audio = {
+      init() {}, play() {}, jump() {}, land() {}, shoot() {}, castMagic() {},
+      slash() {}, ultimate() {}, hit() {}, playerHurt() {}, enemyDefeat() {},
+      pickup() {}, checkpoint() {}, bossAlert() {}, victory() {}, deflect() {},
+      slide() {}, special() {}, setBgmMode() {}, stopBgm() {}, toggleMute() { return false; },
+      lightningCharge() {}, lightningStrike() {}, katanaGlint() {}, bark() {}, meow() {},
+      stockBell() {}, sneeze() {}, wokSizzle() {}, bounce() {}
+    };
+  </script>
+  <script src="../js/config.js"></script>
+  <script src="../js/particles.js"></script>
+  <script src="../js/weather.js"></script>
+  <script src="../js/combat.js"></script>
+  <script src="../js/player.js"></script>
+  <script src="../js/enemies.js"></script>
+  <script src="../js/bosses.js"></script>
+  <script src="../js/level.js"></script>
+  <script src="../js/render-world.js"></script>
+  <script src="../js/render-entities.js"></script>
+
+  <script>
+    (function () {
+      const out = [];
+      const errors = [];
+      window.addEventListener('error', (ev) => errors.push(ev.message || String(ev)));
+
+      function assert(cond, msg) {
+        out.push((cond ? 'PASS: ' : 'FAIL: ') + msg);
+        if (!cond) errors.push('ASSERTION FAILED: ' + msg);
+      }
+
+      let seed = 777123;
+      const origRandom = Math.random;
+      function setSeed(s) { seed = s >>> 0; }
+      Math.random = function () {
+        seed = (seed * 1664525 + 1013904223) >>> 0;
+        return seed / 4294967296;
+      };
+
+      const DT = 1 / 60;
+
+      // ==================== TEST 1: Corgi Skater Bark Sound Wave Attack ====================
+      {
+        const level = SR.createLevel(2);
+        const player = new SR.Player('magic', 8650, 480);
+        const corgi = new SR.Enemy({
+          type: 'corgi_skater', x: 8950, y: 436, patrolMin: 8780, patrolMax: 9220
+        }, level.meta);
+        corgi.dashCd = 3.0;
+        corgi.barkCd = 0;
+
+        const g = {
+          state: 'playing', time: 0, level, player, enemies: [corgi],
+          playerProjectiles: [], enemyProjectiles: [], activeArena: null, activeBoss: null,
+          cheats: { godMode: false, onePunch: false }, addShake() {}
+        };
+
+        let barkWave = null;
+        for (let i = 0; i < 60; i++) {
+          g.time += DT;
+          corgi.update(DT, player, level, g);
+          barkWave = g.enemyProjectiles.find(p => p.kind === 'bark_wave');
+          if (barkWave) break;
+        }
+        assert(!!barkWave && barkWave.soundLabel === 'Woof!' && barkWave.pushForce > 0 && barkWave.deflectable === true,
+          `corgi_skater fires bark_wave (label=${barkWave && barkWave.soundLabel}, pushForce=${barkWave && barkWave.pushForce}, deflectable=${barkWave && barkWave.deflectable})`);
+
+        const oldVx = player.vx;
+        barkWave.x = player.cx;
+        barkWave.y = player.cy;
+        SR.Combat.updateEnemyProjectiles(g, DT);
+        assert(player.vx !== oldVx && Math.abs(player.vx) > 400,
+          `Corgi bark_wave pushes player cleanly (vx=${player.vx.toFixed(1)})`);
+      }
+
+      // ==================== TEST 2: Silent Mini-Boss Heart Drop (No "掉落回復愛心" String) ====================
+      {
+        SR.particles.clearCombat();
+        const level = SR.createLevel(0);
+        const shiba = new SR.Enemy({ type: 'shiba_samurai', x: 4660, y: 528, patrolMin: 4465, patrolMax: 4855 }, level.meta);
+        const g = {
+          level,
+          player: new SR.Player('gun', 4500, 572),
+          enemies: [shiba],
+          score: 0, kills: 0, combo: 0, runFinalized: false, time: 1,
+          cheats: { godMode: false, onePunch: false },
+          onEnemyKilled(e) {
+            if (!e.isBossSummon && !g.runFinalized) {
+              g.kills++;
+              g.score += e.score + Math.min(g.combo, 25) * 15;
+            }
+            if (e.isElite) {
+              g.level.pickups.push({
+                id: SR.nextEntityId(), x: e.cx, y: Math.min(e.y + e.h - 22, 553),
+                kind: 'heart', collected: false, bobPhase: 0
+              });
+            }
+          }
+        };
+        const beforePk = level.pickups.length;
+        shiba.takeDamage(9999, g.player.cx, true, g);
+        const droppedHearts = level.pickups.slice(beforePk).filter(p => p.kind === 'heart');
+        const hasDropText = SR.particles.texts.some(t => t.text && t.text.includes('掉落回復愛心'));
+        assert(droppedHearts.length === 1 && !hasDropText,
+          `Defeated mini-boss drops 1 heart silently without "掉落回復愛心" text (hearts=${droppedHearts.length})`);
+      }
+
+      // ==================== TEST 3: Terrain Geometric Invariants Across All 5 Stages ====================
+      for (let sIdx = 0; sIdx < 5; sIdx++) {
+        const lvl = SR.createLevel(sIdx);
+        const walkSolids = lvl.solids.filter(s => s.kind !== 'wall' && s.kind !== 'arch').sort((a, b) => a.x - b.x);
+        const arches = lvl.solids.filter(s => s.kind === 'arch');
+
+        const minWidth = Math.min(...walkSolids.map(s => s.w));
+        let maxUpStep = 0;
+        let maxGap = 0;
+        for (let i = 1; i < walkSolids.length; i++) {
+          const prev = walkSolids[i - 1];
+          const cur = walkSolids[i];
+          const up = prev.y - cur.y;
+          if (up > maxUpStep) maxUpStep = up;
+          const gap = cur.x - (prev.x + prev.w);
+          if (gap > maxGap) maxGap = gap;
+        }
+
+        let archValid = arches.length === 2;
+        for (const a of arches) {
+          const floor = walkSolids.find(s => a.x >= s.x && (a.x + a.w) <= (s.x + s.w));
+          if (!floor) { archValid = false; break; }
+          const clearance = floor.y - (a.y + a.h);
+          const totalHeight = floor.y - a.y;
+          const leftRunway = a.x - Math.max(0, floor.x);
+          const rightRunway = (floor.x + floor.w) - (a.x + a.w);
+          if (Math.abs(clearance - 36) > 1 || totalHeight > 104 || leftRunway < 220 || rightRunway < 220) {
+            archValid = false;
+          }
+        }
+
+        const groundSpawns = lvl.enemySpawns.filter(sp => !(SR.ENEMY_ARCHETYPES[sp.type] && SR.ENEMY_ARCHETYPES[sp.type].flying));
+        const flyingSpawns = lvl.enemySpawns.filter(sp => (SR.ENEMY_ARCHETYPES[sp.type] && SR.ENEMY_ARCHETYPES[sp.type].flying));
+
+        let enemyPlacementOk = groundSpawns.length === 26 && flyingSpawns.length === 13;
+        let minEdgeClearance = Infinity;
+        let minArchClearance = Infinity;
+        for (const sp of groundSpawns) {
+          const ew = SR.ENEMY_ARCHETYPES[sp.type].w;
+          const ecx = sp.x + ew * 0.5;
+          const floor = walkSolids.find(s => ecx >= s.x && ecx <= s.x + s.w);
+          if (!floor) { enemyPlacementOk = false; continue; }
+          const leftDist = sp.x - Math.max(0, floor.x);
+          const rightDist = (floor.x + floor.w) - (sp.x + ew);
+          minEdgeClearance = Math.min(minEdgeClearance, leftDist, rightDist);
+          if (leftDist < 120 || rightDist < 120) enemyPlacementOk = false;
+          if (sp.patrolMin < Math.max(0, floor.x) + 60 || sp.patrolMax > floor.x + floor.w - 60) enemyPlacementOk = false;
+
+          for (const a of arches) {
+            if (ecx < a.x) {
+              const d = a.x - (sp.x + ew);
+              minArchClearance = Math.min(minArchClearance, d);
+              if (d < 200) enemyPlacementOk = false;
+              if (sp.patrolMax > a.x - 55) enemyPlacementOk = false;
+            } else if (ecx > a.x + a.w) {
+              const d = sp.x - (a.x + a.w);
+              minArchClearance = Math.min(minArchClearance, d);
+              if (d < 200) enemyPlacementOk = false;
+              if (sp.patrolMin < a.x + a.w + 55) enemyPlacementOk = false;
+            } else {
+              enemyPlacementOk = false;
+            }
+          }
+        }
+
+        const terrContinuous = lvl.territories[0].startX === 0 &&
+          lvl.territories[lvl.territories.length - 1].endX >= lvl.width &&
+          lvl.width === 15600;
+
+        assert(minWidth >= 420 && maxUpStep <= 50 && maxGap <= 0,
+          `Stage ${sIdx + 1} terrain smooth: width=${lvl.width}, minPlatW=${minWidth}, maxUpStep=${maxUpStep}px, maxGap=${maxGap}px`);
+        assert(archValid, `Stage ${sIdx + 1} arches spacious (clearance=36px, totalH<=104px, runway>=220px)`);
+        assert(enemyPlacementOk,
+          `Stage ${sIdx + 1} middle-of-platform placement (26G+13F, minEdgeClearance=${Math.round(minEdgeClearance)}px, minArchClearance=${Math.round(minArchClearance)}px)`);
+        assert(terrContinuous, `Stage ${sIdx + 1} territories continuous over 0..15600`);
+      }
+
+      // ==================== TEST 4: 15 Full-Stage Casual Single-Jump Traversal & Combat Simulations ====================
+      function runStageTraversalSim(charId, stageIdx) {
+        setSeed(30000 + stageIdx * 500 + (charId === 'magic' ? 1 : charId === 'gun' ? 2 : 3));
+        const level = SR.createLevel(stageIdx);
+        const player = new SR.Player(charId, level.spawn.x, level.spawn.y);
+        const enemies = level.enemySpawns.map(sp => new SR.Enemy(sp, level.meta));
+
+        const g = {
+          state: 'playing', time: 0, level, player, enemies,
+          playerProjectiles: [], enemyProjectiles: [], activeArena: null, activeBoss: null,
+          camX: 0, camY: 0, shakeX: 0, shakeY: 0, hitstop: 0,
+          combo: 0, score: 0, kills: 0, deflectScoredCount: 0, runFinalized: false,
+          cheats: { godMode: false, onePunch: false },
+          addShake() {},
+          registerHitCombo() { g.combo++; },
+          applyPlayerMelee(hitbox, dmg, facing, isHeavy) {
+            return SR.Combat.applyPlayerMelee(g, hitbox, dmg, facing, isHeavy);
+          },
+          addDeflectScore() {},
+          onEnemyKilled(e) {
+            g.kills++;
+            if (e.isElite || (player.hp < player.maxHp && Math.random() < 0.32)) {
+              level.pickups.push({
+                id: SR.nextEntityId(), x: e.cx, y: Math.min(e.y + e.h - 22, 553),
+                kind: 'heart', collected: false, bobPhase: 0
+              });
+            }
+          },
+          onBossDefeated(boss) {
+            boss.arena.defeated = true;
+            boss.arena.active = false;
+            g.activeArena = null;
+            g.activeBoss = null;
+          }
+        };
+
+        let jumpHold = 0;
+        let stuckTicks = 0;
+        let prevX = player.x;
+        let maxContinuousStuck = 0;
+        let hitsTaken = 0;
+
+        for (let step = 0; step < 60 * 140; step++) {
+          g.time += DT;
+          if (jumpHold > 0) jumpHold -= DT;
+
+          const mid = level.bossArenas.midboss;
+          if (mid && !mid.defeated && !mid.active && player.cx >= mid.triggerX) {
+            mid.active = true;
+            g.activeArena = mid;
+            g.activeBoss = mid.bossClass === 'golem' ? new SR.MidBoss(mid) : new SR.FinalBoss(mid);
+            g.enemies.push(g.activeBoss);
+          }
+          if (player.cx >= level.bossArenas.finalboss.triggerX) {
+            return {
+              reachedEnd: true, time: g.time, hp: player.hp, hitsTaken,
+              kills: g.kills, maxContinuousStuck
+            };
+          }
+
+          const blockedAhead = level.solids.some(s =>
+            s.kind !== 'wall' && s.kind !== 'arch' &&
+            s.x >= player.x + player.w - 4 && s.x <= player.x + player.w + 36 &&
+            s.y < player.y + player.h - 4
+          );
+          const nearArch = level.solids.some(s =>
+            s.kind === 'arch' && s.x >= player.x - 10 && s.x <= player.x + player.w + 48
+          );
+
+          let target = g.activeBoss && !g.activeBoss.dead ? g.activeBoss : null;
+          let bestD = target ? Math.hypot(target.cx - player.cx, target.cy - player.cy) : 9999;
+          for (const e of g.enemies) {
+            if (e.dead) continue;
+            const d = Math.hypot(e.cx - player.cx, e.cy - player.cy);
+            if (d < 460 && (!target || d < bestD)) {
+              bestD = d;
+              target = e;
+            }
+          }
+
+          let moveRight = true;
+          let moveLeft = false;
+          if (g.activeArena) {
+            if (player.x > g.activeArena.maxX - 180) { moveRight = false; moveLeft = true; }
+            else if (player.x < g.activeArena.minX + 120) { moveRight = true; moveLeft = false; }
+            else if (target && Math.abs(target.cx - player.cx) < (charId === 'blade' ? 85 : 220)) {
+              moveRight = player.cx >= target.cx;
+              moveLeft = !moveRight;
+            }
+          }
+
+          const jumpPressed = (blockedAhead || (g.activeBoss && !g.activeBoss.dead && g.enemyProjectiles.some(ep => Math.hypot(ep.x - player.cx, ep.y - player.cy) < 130))) &&
+            player.onGround && jumpHold <= 0 && !nearArch;
+          if (jumpPressed) jumpHold = 0.28;
+
+          const input = {
+            left: moveLeft, right: moveRight, up: false, down: false, aimUp: false, aimDown: false,
+            aimMode: 'mouse',
+            mouseWorldX: target ? target.cx : player.cx + 220,
+            mouseWorldY: target ? target.cy : player.shoulderY,
+            jumpHeld: jumpHold > 0,
+            jumpPressed,
+            downPressed: false,
+            slidePressed: nearArch && player.onGround && !player.sliding && player.slideCooldown <= 0,
+            slideHeld: nearArch,
+            attackHeld: !!target && (charId !== 'blade' || bestD < 190 || player.comboStep > 0),
+            skillPressed: !!target && player.skillCharges > 0 && player.skillCastGap <= 0 && (charId !== 'blade' || bestD > 95),
+            ultimatePressed: !!target && bestD < 480 && player.ultimateTimer <= 0 && (target.isBoss || target.isElite)
+          };
+
+          const oldHp = player.hp;
+          player.update(DT, input, level, g);
+          for (const e of g.enemies) {
+            if (e.dead) continue;
+            e.update(DT, player, level, g);
+            const cbox = { x: e.x + 5, y: e.y + 5, w: e.w - 10, h: e.h - 10 };
+            if (SR.aabb(cbox, player)) {
+              player.takeDamage(1, player.cx >= e.cx ? 1 : -1, g, false, SR.Combat.isEnemyDashing(e) ? 'dash' : 'contact');
+            }
+          }
+          for (const pk of level.pickups) {
+            if (!pk.collected && Math.hypot(player.cx - pk.x, player.cy - pk.y) < 36) {
+              pk.collected = true;
+              if (pk.kind === 'heart') player.hp = Math.min(player.maxHp, player.hp + 2);
+            }
+          }
+          SR.Combat.updatePlayerProjectiles(g, DT);
+          SR.Combat.updateEnemyProjectiles(g, DT);
+          SR.particles.update(DT, 0);
+          g.camX = SR.clamp(player.x - 450, 0, level.width - 1200);
+
+          if (player.hp < oldHp) hitsTaken += (oldHp - player.hp);
+          if (player.hp <= 0) {
+            player.hp = player.maxHp;
+            player.invulnTimer = 1.0;
+          }
+
+          if (!g.activeArena) {
+            if (Math.abs(player.x - prevX) < 0.2) {
+              stuckTicks++;
+              if (stuckTicks > maxContinuousStuck) maxContinuousStuck = stuckTicks;
+            } else {
+              stuckTicks = 0;
+            }
+          } else {
+            stuckTicks = 0;
+          }
+          prevX = player.x;
+        }
+        return { reachedEnd: false, x: player.x, time: g.time, hp: player.hp, hitsTaken, kills: g.kills, maxContinuousStuck };
+      }
+
+      out.push('\n=== 15 FULL-STAGE CASUAL SINGLE-JUMP TRAVERSAL & COMBAT SIMULATIONS (x=90 -> 14,500) ===');
+      const heroes = ['magic', 'gun', 'blade'];
+      let reachedCount = 0;
+      let maxStuckOverall = 0;
+      for (let s = 0; s < 5; s++) {
+        const line = [];
+        for (const h of heroes) {
+          const r = runStageTraversalSim(h, s);
+          if (r.reachedEnd) reachedCount++;
+          if (r.maxContinuousStuck > maxStuckOverall) maxStuckOverall = r.maxContinuousStuck;
+          line.push(`${h}:${r.reachedEnd ? 'OK' : 'STUCK@' + Math.round(r.x)}(${r.time.toFixed(1)}s, hits=${r.hitsTaken}, kills=${r.kills}, stuckT=${r.maxContinuousStuck})`);
+        }
+        out.push(`Stage ${s + 1} (${SR.MAPS[s].name}): ${line.join(' | ')}`);
+      }
+      assert(reachedCount === 15, `All 15/15 casual single-jump runs reached Final Boss gate (got ${reachedCount}/15)`);
+      assert(maxStuckOverall < 25, `Zero terrain snags across all 15 runs (maxContinuousStuck=${maxStuckOverall} ticks)`);
+
+      Math.random = origRandom;
+      assert(errors.length === 0, 'Zero uncaught runtime errors or assertion failures');
+      out.push('\nERRORS_COUNT=' + errors.length);
+      if (errors.length) out.push(errors.join('\n'));
+      document.getElementById('sim-output').textContent = out.join('\n');
+    })();
+  </script>
+</body>
+</html>

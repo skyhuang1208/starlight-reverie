@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Starlight Reverie — Features, Audio & Balance Unit Suite</title>
+</head>
+<body>
+  <canvas id="sim-canvas" width="1200" height="680"></canvas>
+  <pre id="sim-output">RUNNING...</pre>
+
+  <script>window.SR = window.SR || {};</script>
+  <script src="../js/config.js"></script>
+  <script src="../js/leaderboard.js"></script>
+  <script src="../js/audio.js"></script>
+  <script src="../js/particles.js"></script>
+  <script src="../js/weather.js"></script>
+  <script src="../js/combat.js"></script>
+  <script src="../js/player.js"></script>
+  <script src="../js/enemies.js"></script>
+  <script src="../js/bosses.js"></script>
+  <script src="../js/level.js"></script>
+  <script src="../js/render-world.js"></script>
+  <script src="../js/render-entities.js"></script>
+
+  <script>
+    (async function () {
+      const out = [];
+      const errors = [];
+      window.addEventListener('error', (ev) => errors.push(ev.message || String(ev)));
+      function assert(cond, msg) {
+        out.push((cond ? 'PASS: ' : 'FAIL: ') + msg);
+        if (!cond) errors.push('ASSERTION FAILED: ' + msg);
+      }
+
+      try {
+        const DT = 1 / 60;
+        const spawnedTexts = [];
+        const origSpawnText = SR.particles.spawnText.bind(SR.particles);
+        SR.particles.spawnText = function (x, y, text, color, scale) {
+          spawnedTexts.push({ x, y, text, color, scale });
+          return origSpawnText(x, y, text, color, scale);
+        };
+
+        function createBossGame(charId, stageIdx, arenaKind = 'finalboss') {
+          const level = SR.createLevel(stageIdx);
+          const arena = level.bossArenas[arenaKind];
+          arena.active = true;
+          const player = new SR.Player(charId, arena.minX + 180, 575);
+          const boss = arena.bossClass === 'golem'
+            ? new SR.MidBoss(arena)
+            : (arena.bossClass === 'human' ? new SR.HumanBoss(arena) : new SR.FinalBoss(arena));
+          return {
+            state: 'playing', time: 0, level, player, enemies: [boss],
+            playerProjectiles: [], enemyProjectiles: [],
+            activeArena: arena, activeBoss: boss, camX: arena.minX - 60, camY: 0,
+            shakeX: 0, shakeY: 0, hitstop: 0, combo: 0, comboTimer: 0,
+            score: 0, kills: 0, aimMode: 'mouse', mouse: { x: 800, y: 340, inside: true },
+            cheats: { godMode: false, onePunch: false }, bossDefeatedCalled: false,
+            addShake() {}, registerHitCombo() { this.combo++; },
+            applyPlayerMelee(hitbox, dmg, facing, isHeavy) { return SR.Combat.applyPlayerMelee(this, hitbox, dmg, facing, isHeavy); },
+            addDeflectScore() {}, onEnemyKilled() {}, onBossDefeated() { this.bossDefeatedCalled = true; }
+          };
+        }
+
+        // 1) Version & Audio SFX
+        assert(SR.GAME_VERSION === 'v1.4.0', `SR.GAME_VERSION === 'v1.4.0'`);
+        assert(typeof SR.audio.bark === 'function' && typeof SR.audio.meow === 'function', 'SR.audio.bark & meow exist');
+
+        // 2) Skill 2-Charge, Cooldowns (+1s) & 30s Ult CD
+        const expectedCds = { blade: 3.3, gun: 3.5, magic: 3.8 };
+        for (const [charId, cd] of Object.entries(expectedCds)) {
+          const g = createBossGame(charId, 0, 'finalboss');
+          const p = g.player;
+          assert(Math.abs(p.def.skillCooldown - cd) < 0.001 && p.skillMaxCharges === 2 && p.def.ultimateCooldown === 30.0,
+            `${charId}: skillCd=${p.def.skillCooldown}s, maxCharges=${p.skillMaxCharges}, ultCd=${p.def.ultimateCooldown}s`);
+        }
+
+        // 3) Puddle Midpoint Slowdown (1.6s, 0.48x walk, 0.62x slide)
+        {
+          const g = createBossGame('gun', 0, 'finalboss');
+          const p = g.player;
+          SR.weather.reset(g.level.meta);
+          SR.weather.puddles = [{ x: p.cx, y: p.y + p.h, w: 72, life: 5, maxLife: 5, ripple: 0 }];
+          p.onGround = true;
+          SR.weather.update(DT, p, g.level, g.camX, 1200, g);
+          assert(Math.abs(p.slowTimer - 1.6) < 0.05, `Puddle slowTimer=${p.slowTimer.toFixed(2)}s`);
+          p.startSlide();
+          assert(Math.abs(Math.abs(p.vx) / p.def.slideSpeed - 0.62) < 0.01, 'Puddle slide speed ~0.62x');
+          p.endSlide(g.level.solids);
+          p.vx = 0;
+          const blankIn = { left: false, right: true, up: false, down: false, aimUp: false, aimDown: false, aimMode: 'keyboard' };
+          for (let i = 0; i < 30; i++) p.update(DT, blankIn, g.level, g);
+          assert(Math.abs(p.vx / p.def.speed - 0.48) < 0.02, 'Puddle walk speed ~0.48x');
+        }
+
+        // 4) Woof! & Meow! Sound Waves
+        {
+          const level = SR.createLevel(0);
+          const p = new SR.Player('gun', 900, 575);
+          const g = { state: 'playing', level, player: p, enemies: [], enemyProjectiles: [], playerProjectiles: [], camX: 400, camY: 0, cheats: {} };
+          const shiba = new SR.Enemy({ type: 'shiba_samurai', x: 620, y: 551, patrolMin: 400, patrolMax: 1100 }, level.meta);
+          shiba.dashCd = 99; shiba.barkCd = 0;
+          for (let i = 0; i < 40; i++) shiba.update(DT, p, level, g);
+          const sw = g.enemyProjectiles.find(ep => ep.kind === 'bark_wave');
+          assert(sw && sw.soundLabel === 'Woof!', `Shiba emits Woof! bark_wave`);
+
+          g.enemyProjectiles.length = 0;
+          const cat = new SR.Enemy({ type: 'cat_thrower', x: 620, y: 549, patrolMin: 400, patrolMax: 1100 }, level.meta);
+          cat.dashCd = 99; cat.barkCd = 0;
+          for (let i = 0; i < 40; i++) cat.update(DT, p, level, g);
+          const mw = g.enemyProjectiles.find(ep => ep.kind === 'bark_wave');
+          assert(mw && mw.soundLabel === 'Meow!' && mw.color === '#ff9fd6', `Cat emits pink Meow! bark_wave`);
+        }
+
+        // 5) Simplified "召喚!" Callouts
+        {
+          spawnedTexts.length = 0;
+          const g = createBossGame('gun', 0, 'finalboss');
+          g.activeBoss.summonCooldown = 0;
+          g.activeBoss.beginSummonSkill(g.player, g.level);
+          assert(spawnedTexts.some(t => t.text === '召喚!'), 'HumanBoss summon emits "召喚!"');
+        }
+
+        // 6) Feedback & Secret Play Counter (Offline Local Mock)
+        {
+          const origUrl = SR.LEADERBOARD_API_URL;
+          SR.LEADERBOARD_API_URL = '';
+          const store = {};
+          try {
+            Object.defineProperty(window, 'localStorage', {
+              configurable: true,
+              value: { getItem: (k) => store[k] || null, setItem: (k, v) => { store[k] = String(v); } }
+            });
+          } catch (_) {}
+          const shortRes = await SR.leaderboard.submitFeedback({ message: 'hi' });
+          assert(shortRes.ok === false && shortRes.error === 'message_too_short', 'Feedback rejects < 3 chars');
+          const okRes = await SR.leaderboard.submitFeedback({ message: 'Great boss fights!', category: 'praise', rating: 5 });
+          assert(okRes.ok === true && okRes.mode === 'local', 'Offline feedback stores locally');
+          SR.leaderboard.recordPlay({ charId: 'magic', startStage: 1, usedCheats: false });
+          assert(parseInt(store.sr_local_plays_v1 || '0', 10) === 1, 'recordPlay increments local play counter');
+          SR.LEADERBOARD_API_URL = origUrl;
+        }
+
+        assert(errors.length === 0, 'Zero uncaught runtime errors or assertion failures');
+      } catch (e) {
+        errors.push('FATAL: ' + (e && e.stack ? e.stack : String(e)));
+      } finally {
+        out.push('\nERRORS_COUNT=' + errors.length);
+        if (errors.length) out.push(errors.join('\n'));
+        document.getElementById('sim-output').textContent = out.join('\n');
+      }
+    })();
+  </script>
+</body>
+</html>

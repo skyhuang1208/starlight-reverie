@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Starlight Reverie — Mini-Boss Chase, Anti-Cheese & Boss Monte Carlo</title>
+</head>
+<body>
+  <canvas id="sim-canvas" width="1200" height="680"></canvas>
+  <pre id="sim-output">RUNNING...</pre>
+
+  <script>
+    window.SR = window.SR || {};
+    SR.audio = {
+      init() {}, play() {}, jump() {}, land() {}, shoot() {}, castMagic() {},
+      slash() {}, ultimate() {}, hit() {}, playerHurt() {}, enemyDefeat() {},
+      pickup() {}, checkpoint() {}, bossAlert() {}, victory() {}, deflect() {},
+      slide() {}, special() {}, setBgmMode() {}, stopBgm() {}, toggleMute() { return false; },
+      lightningCharge() {}, lightningStrike() {}, katanaGlint() {}, bark() {}, meow() {},
+      stockBell() {}, sneeze() {}, wokSizzle() {}, bounce() {}
+    };
+  </script>
+  <script src="../js/config.js"></script>
+  <script src="../js/particles.js"></script>
+  <script src="../js/weather.js"></script>
+  <script src="../js/combat.js"></script>
+  <script src="../js/player.js"></script>
+  <script src="../js/enemies.js"></script>
+  <script src="../js/bosses.js"></script>
+  <script src="../js/level.js"></script>
+  <script src="../js/render-world.js"></script>
+  <script src="../js/render-entities.js"></script>
+
+  <script>
+    (function () {
+      const out = [];
+      const errors = [];
+      window.addEventListener('error', (ev) => errors.push(ev.message || String(ev)));
+      try {
+        function assert(cond, msg) {
+          out.push((cond ? 'PASS: ' : 'FAIL: ') + msg);
+          if (!cond) errors.push('ASSERTION FAILED: ' + msg);
+        }
+
+        let seed = 424242;
+        const origRandom = Math.random;
+        function setSeed(s) { seed = s >>> 0; }
+        Math.random = function () {
+          seed = (seed * 1664525 + 1013904223) >>> 0;
+          return seed / 4294967296;
+        };
+
+        const DT = 1 / 60;
+
+        function createBossGame(charId, stageIdx, arenaKind = 'finalboss') {
+          const level = SR.createLevel(stageIdx);
+          const arena = level.bossArenas[arenaKind];
+          arena.active = true;
+          const player = new SR.Player(charId, arena.minX + 180, 575);
+          let boss;
+          if (arena.bossClass === 'golem') boss = new SR.MidBoss(arena);
+          else if (arena.bossClass === 'human') boss = new SR.HumanBoss(arena);
+          else boss = new SR.FinalBoss(arena);
+
+          return {
+            state: 'playing',
+            time: 0,
+            level,
+            player,
+            enemies: [boss],
+            playerProjectiles: [],
+            enemyProjectiles: [],
+            activeArena: arena,
+            activeBoss: boss,
+            camX: arena.minX - 60,
+            camY: 0,
+            shakeX: 0,
+            shakeY: 0,
+            hitstop: 0,
+            combo: 0,
+            comboTimer: 0,
+            score: 0,
+            kills: 0,
+            deflectScoredCount: 0,
+            runFinalized: false,
+            aimMode: 'mouse',
+            mouse: { x: 800, y: 340, inside: true },
+            cheats: { godMode: false, onePunch: false },
+            bossDefeatedCalled: false,
+            addShake() {},
+            registerHitCombo() { this.combo++; },
+            applyPlayerMelee(hitbox, dmg, facing, isHeavy) {
+              return SR.Combat.applyPlayerMelee(this, hitbox, dmg, facing, isHeavy);
+            },
+            addDeflectScore(pts) {
+              if (!this.runFinalized && this.deflectScoredCount < 10) {
+                this.deflectScoredCount++;
+                this.score += pts;
+              }
+            },
+            onEnemyKilled(e) {
+              if (e.isElite) {
+                this.level.pickups.push({
+                  id: SR.nextEntityId(), x: e.cx, y: Math.min(e.y + e.h - 22, 553),
+                  kind: 'heart', collected: false, bobPhase: 0
+                });
+              }
+            },
+            onBossDefeated() { this.bossDefeatedCalled = true; }
+          };
+        }
+
+        // ==================== 1) Mini-Boss Adjacent-Plain & Aerial Bar Chase Jumps ====================
+        for (const eType of ['delivery_scooter', 'corgi_skater', 'cat_thrower']) {
+          const level = SR.createLevel(0);
+          const arch = SR.ENEMY_ARCHETYPES[eType];
+          const p = new SR.Player('gun', 1660, 516 - 52);
+          const e = new SR.Enemy({ type: eType, x: 1410, y: 560 - arch.h, patrolMin: 1120, patrolMax: 1520 }, level.meta);
+          e.dashCd = 99; e.barkCd = 99; e.leapCd = 0;
+          const startY = e.y;
+          let minY = startY;
+          const g = { level, player: p, enemies: [e], enemyProjectiles: [], cheats: {} };
+          for (let step = 0; step < 60 * 5; step++) {
+            e.update(DT, p, level, g);
+            if (e.y < minY) minY = e.y;
+          }
+          assert(minY < startY - 35 && e.x + e.w > 1520,
+            `${eType} leaped onto adjacent higher terrace (startY=${startY.toFixed(0)}, minY=${minY.toFixed(0)}, endX=${e.x.toFixed(0)})`);
+
+          const p2 = new SR.Player('gun', 1190, 465 - 52);
+          const e2 = new SR.Enemy({ type: eType, x: 1160, y: 560 - arch.h, patrolMin: 1000, patrolMax: 1460 }, level.meta);
+          e2.dashCd = 99; e2.barkCd = 99; e2.leapCd = 0;
+          const startY2 = e2.y;
+          let minY2 = startY2;
+          const g2 = { level, player: p2, enemies: [e2], enemyProjectiles: [], cheats: {} };
+          for (let step = 0; step < 60 * 5; step++) {
+            e2.update(DT, p2, level, g2);
+            if (e2.y < minY2) minY2 = e2.y;
+          }
+          assert(minY2 < startY2 - 75,
+            `${eType} leaped upward onto aerial bar (startY=${startY2.toFixed(0)}, minY=${minY2.toFixed(0)}, endY=${e2.y.toFixed(0)})`);
+        }
+
+        // ==================== 2) Anti-Platform-Cheese on ALL 5 Human Bosses ====================
+        for (let sIdx = 0; sIdx < 5; sIdx++) {
+          setSeed(900 + sIdx);
+          const g = createBossGame('gun', sIdx, 'finalboss');
+          const p = g.player;
+          const boss = g.activeBoss;
+          p.x = 14970; p.y = 390 - p.h; p.onGround = true;
+
+          let minX = boss.x, maxX = boss.x, minY = boss.y;
+          for (let step = 0; step < 60 * 10; step++) {
+            g.time += DT;
+            p.x = 14970; p.y = 390 - p.h; p.vx = 0; p.vy = 0; p.onGround = true;
+            if (p.invulnTimer > 0) p.invulnTimer = Math.max(0, p.invulnTimer - DT);
+
+            boss.update(DT, p, g.level, g);
+            if (boss.x < minX) minX = boss.x;
+            if (boss.x > maxX) maxX = boss.x;
+            if (boss.y < minY) minY = boss.y;
+
+            const contactBox = { x: boss.x + 5, y: boss.y + 5, w: boss.w - 10, h: boss.h - 10 };
+            if (SR.aabb(contactBox, p)) {
+              p.takeDamage(1, p.cx >= boss.cx ? 1 : -1, g, false, 'contact');
+            }
+            SR.Combat.updateEnemyProjectiles(g, DT);
+            SR.particles.update(DT, 0);
+          }
+          const xRange = maxX - minX;
+          assert(xRange > 120 && minY < 470 && p.hp < p.maxHp,
+            `Stage ${sIdx + 1} (${boss.bossKind}) counters high-bar camping: xRange=${xRange.toFixed(0)}, minY=${minY.toFixed(0)}, camperHP=${p.hp}/${p.maxHp}`);
+        }
+
+        // ==================== 3) 150-Fight Human Boss + 27-Fight Mid-Boss Monte Carlo ====================
+        function runBossTrial(charId, stageIdx, arenaKind, trialIdx) {
+          setSeed(55000 + stageIdx * 1000 + trialIdx * 41 + (charId === 'magic' ? 1 : charId === 'gun' ? 2 : 3));
+          const g = createBossGame(charId, stageIdx, arenaKind);
+          const p = g.player;
+          const boss = g.activeBoss;
+          const arena = g.activeArena;
+          let peakProjs = 0;
+          let jumpHold = 0;
+          let slideCd = 0;
+          let strafeDir = trialIdx % 2 === 0 ? 1 : -1;
+          let strafeTimer = 0.7;
+
+          for (let step = 0; step < 60 * 140; step++) {
+            g.time += DT;
+            strafeTimer -= DT;
+            if (slideCd > 0) slideCd -= DT;
+            if (jumpHold > 0) jumpHold -= DT;
+
+            let target = boss;
+            let bestDist = Math.hypot(boss.cx - p.cx, boss.cy - p.cy);
+            for (const e of g.enemies) {
+              if (e.dead || e === boss) continue;
+              const d = Math.hypot(e.cx - p.cx, e.cy - p.cy);
+              if (d < bestDist - 80) { bestDist = d; target = e; }
+            }
+
+            let incomingThreat = false;
+            let waveThreat = false;
+            for (const ep of g.enemyProjectiles) {
+              const d = Math.hypot(ep.x - p.cx, ep.y - p.cy);
+              if (d < 165) { incomingThreat = true; if (ep.kind === 'wave') waveThreat = true; }
+            }
+            if (SR.Combat.isEnemyDashing(boss) && Math.abs(boss.cx - p.cx) < 280) {
+              incomingThreat = true; waveThreat = true;
+            }
+
+            const idealDist = charId === 'blade' ? 115 : (charId === 'gun' ? 310 : 340);
+            const distX = target.cx - p.cx;
+            let move = 0;
+            if (Math.abs(distX) > idealDist + 55) move = Math.sign(distX);
+            else if (Math.abs(distX) < idealDist - 55) move = -Math.sign(distX);
+            else {
+              if (strafeTimer <= 0) { strafeDir *= -1; strafeTimer = 0.65 + Math.random() * 0.6; }
+              move = strafeDir;
+            }
+            if (p.x < arena.minX + 75) move = 1;
+            if (p.x + p.w > arena.maxX - 75) move = -1;
+
+            if (boss.meteors) {
+              for (const m of boss.meteors) {
+                if (!m.fired && m.warnTimer < 0.35 && Math.abs(m.x - p.cx) < 42) {
+                  move = p.cx >= m.x ? 1 : -1;
+                  if (p.x < arena.minX + 90) move = 1;
+                  if (p.x + p.w > arena.maxX - 90) move = -1;
+                }
+              }
+            }
+
+            let jumpPressed = false;
+            if (waveThreat && (p.onGround || p.jumpsLeft > 0) && jumpHold <= 0) {
+              jumpPressed = true; jumpHold = 0.28;
+            } else if (incomingThreat && p.onGround && Math.random() < 0.08) {
+              jumpPressed = true; jumpHold = 0.25;
+            }
+
+            let slidePressed = false;
+            if (!waveThreat && incomingThreat && p.onGround && slideCd <= 0 && charId !== 'blade' && Math.random() < 0.12) {
+              slidePressed = true; slideCd = 0.9;
+            }
+
+            const input = {
+              left: move < 0, right: move > 0, up: false, down: false, aimUp: false, aimDown: false,
+              aimMode: 'mouse',
+              mouseWorldX: target.cx + (Math.random() - 0.5) * 24,
+              mouseWorldY: target.cy + (Math.random() - 0.5) * 20,
+              jumpHeld: jumpHold > 0, jumpPressed, downPressed: false, slidePressed, slideHeld: false,
+              attackHeld: charId !== 'blade' || Math.abs(distX) < 195 || p.comboStep > 0,
+              skillPressed: p.skillCharges > 0 && p.skillCastGap <= 0 && (charId !== 'blade' || Math.abs(distX) > 90 || incomingThreat),
+              ultimatePressed: p.ultimateTimer <= 0 && Math.hypot(boss.cx - p.cx, boss.cy - p.cy) < 620
+            };
+
+            p.update(DT, input, g.level, g);
+            for (const e of g.enemies) {
+              if (e.dead) continue;
+              e.update(DT, p, g.level, g);
+              const contactBox = { x: e.x + 5, y: e.y + 5, w: e.w - 10, h: e.h - 10 };
+              if (SR.aabb(contactBox, p)) {
+                const dmgSource = SR.Combat.isEnemyDashing(e) ? 'dash' : 'contact';
+                p.takeDamage(1, p.cx >= e.cx ? 1 : -1, g, false, dmgSource);
+              }
+            }
+            for (const pk of g.level.pickups) {
+              if (!pk.collected && Math.hypot(p.cx - pk.x, p.cy - pk.y) < 34) {
+                pk.collected = true;
+                if (pk.kind === 'heart') p.hp = Math.min(p.maxHp, p.hp + 2);
+              }
+            }
+            SR.Combat.updatePlayerProjectiles(g, DT);
+            SR.Combat.updateEnemyProjectiles(g, DT);
+            SR.particles.update(DT, 0);
+
+            if (g.enemyProjectiles.length > peakProjs) peakProjs = g.enemyProjectiles.length;
+            if (boss.dead || g.bossDefeatedCalled) return { win: true, time: g.time, hp: p.hp, peakProjs };
+            if (p.hp <= 0) return { win: false, time: g.time, hp: 0, peakProjs };
+          }
+          return { win: false, time: g.time, hp: p.hp, peakProjs };
+        }
+
+        const heroes = ['magic', 'gun', 'blade'];
+        out.push('\n=== 150-FIGHT HUMAN BOSS MONTE CARLO ===');
+        for (let s = 0; s < 5; s++) {
+          let stageWins = 0;
+          const heroSummaries = [];
+          for (const h of heroes) {
+            let wins = 0, tSum = 0, hpSum = 0, pMax = 0;
+            for (let tr = 0; tr < 10; tr++) {
+              const r = runBossTrial(h, s, 'finalboss', tr);
+              if (r.win) wins++;
+              tSum += r.time;
+              hpSum += r.hp;
+              if (r.peakProjs > pMax) pMax = r.peakProjs;
+            }
+            stageWins += wins;
+            heroSummaries.push(`${h}:${wins * 10}% (${(tSum / 10).toFixed(1)}s, hp=${(hpSum / 10).toFixed(1)}, peak=${pMax})`);
+          }
+          out.push(`Stage ${s + 1} (${SR.MAPS[s].bossTitle}) => Overall ${Math.round(stageWins / 30 * 100)}% | ${heroSummaries.join(' | ')}`);
+        }
+
+        out.push('\n=== 27-FIGHT MID/CREATURE BOSS MONTE CARLO ===');
+        for (const s of [0, 3, 4]) {
+          let wins = 0, tSum = 0, hpSum = 0, pMax = 0;
+          for (let hi = 0; hi < heroes.length; hi++) {
+            for (let tr = 0; tr < 3; tr++) {
+              const r = runBossTrial(heroes[hi], s, 'midboss', tr);
+              if (r.win) wins++;
+              tSum += r.time;
+              hpSum += r.hp;
+              if (r.peakProjs > pMax) pMax = r.peakProjs;
+            }
+          }
+          out.push(`Stage ${s + 1} Mid-Boss (${SR.MAPS[s].midBossTitle}) => Overall ${Math.round(wins / 9 * 100)}% (${(tSum / 9).toFixed(1)}s, hp=${(hpSum / 9).toFixed(1)}, peak=${pMax})`);
+        }
+
+        Math.random = origRandom;
+        assert(errors.length === 0, 'Zero uncaught runtime errors or assertion failures');
+      } catch (e) {
+        errors.push('FATAL: ' + (e && e.stack ? e.stack : String(e)));
+      } finally {
+        out.push('\nERRORS_COUNT=' + errors.length);
+        if (errors.length) out.push(errors.join('\n'));
+        document.getElementById('sim-output').textContent = out.join('\n');
+      }
+    })();
+  </script>
+</body>
+</html>
