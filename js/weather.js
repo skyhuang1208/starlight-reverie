@@ -145,7 +145,7 @@ window.SR = window.SR || {};
             SR.audio.lightningCharge();
           }
         } else if (c.state === 'charging') {
-          // Stop in place for 1.5s while aggregating electric power!
+          // Stop in place for 1.0s while aggregating electric power!
           c.strikeY = this.findGroundY(c.x, c.y + 20, level);
           if (Math.random() < 0.65) {
             const ang = Math.random() * Math.PI * 2;
@@ -340,12 +340,12 @@ window.SR = window.SR || {};
         ctx.restore();
       }
 
-      // Draw tracking thunderclouds, 1.5s electric charge aggregation, and lightning bolts
+      // Draw tracking thunderclouds, 1.0s electric charge aggregation, and lightning bolts
       for (const c of this.clouds) {
         ctx.save();
         ctx.globalAlpha = Math.max(0, Math.min(1, c.alpha));
 
-        // Charging warning shimmer & aggregating arcs (1.5 seconds!)
+        // Charging warning shimmer & aggregating arcs (1.0 second!)
         if (c.state === 'charging') {
           const prog = Math.min(1, c.timer / c.chargeDuration);
           const pulse = 0.16 + prog * 0.34 + Math.sin(time * 26) * 0.08;
@@ -448,7 +448,7 @@ window.SR = window.SR || {};
         ctx.arc(cx + 9, cy + 2, 3, 0, Math.PI * 2);
         ctx.fill();
 
-        // Countdown lightning emblem & crackling electric arcs on top of cloud while aggregating (1.5s)
+        // Countdown lightning emblem & crackling electric arcs on top of cloud while aggregating (1.0s)
         if (c.state === 'charging') {
           const prog = Math.min(1, c.timer / c.chargeDuration);
           ctx.save();

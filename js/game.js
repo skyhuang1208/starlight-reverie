@@ -57,8 +57,6 @@ window.SR = window.SR || {};
       this.hoveredMapIndex = -1;
       this.time = 0;
       this.runDuration = 0;
-      this.transitionTimer = 0;
-      this.transitionDuration = 3.5;
 
       this.level = SR.createLevel(0);
       this.player = null;
@@ -430,8 +428,6 @@ window.SR = window.SR || {};
         cheatGod: $('cheat-god'),
         cheatOnePunch: $('cheat-onepunch'),
         hudCheatsActive: $('hud-cheats-active'),
-        transCountdown: $('trans-countdown'),
-        transBarFill: $('trans-bar-fill'),
         charName: $('hud-char-name'),
         charRole: $('hud-char-role'),
         stagePill: $('hud-stage-pill'),
@@ -1069,7 +1065,7 @@ window.SR = window.SR || {};
       }
       if (this.player && this.player.hp < this.player.maxHp && Math.random() < 0.32) {
         this.level.pickups.push({
-          id: 9000 + this.kills + Math.floor(this.time * 10), x: e.cx, y: e.cy,
+          id: SR.nextEntityId(), x: e.cx, y: e.cy,
           kind: 'heart', collected: false, bobPhase: 0
         });
       }
@@ -1099,7 +1095,7 @@ window.SR = window.SR || {};
         SR.audio.checkpoint();
         SR.particles.spawnText(boss.cx, boss.cy - 20, '✦ GUARDIAN CLEARED! ✦', '#9cf5e3', 1.45);
         this.level.pickups.push({
-          id: 9991, x: boss.cx, y: 550, kind: 'heart', collected: false, bobPhase: 0
+          id: SR.nextEntityId(), x: boss.cx, y: 550, kind: 'heart', collected: false, bobPhase: 0
         });
       } else if (boss.arena.id === 'finalboss') {
         this.stagesCleared++;

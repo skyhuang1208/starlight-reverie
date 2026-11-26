@@ -468,8 +468,10 @@ window.SR = window.SR || {};
           // INSTANT PLATFORM-CROSSING IAIJUTSU DASH!
           const startX = this.cx;
           const startY = this.cy;
+          const minBound = (this.isBossSummon && game && game.activeArena) ? (game.activeArena.minX + 16) : 60;
+          const maxBound = (this.isBossSummon && game && game.activeArena) ? (game.activeArena.maxX - this.w - 16) : (level.width - this.w - 60);
           const dashDist = SR.clamp(Math.abs(dx) + 70, 210, 340);
-          const rawTargetX = SR.clamp(this.x + this.facing * dashDist, 60, level.width - this.w - 60);
+          const rawTargetX = SR.clamp(this.x + this.facing * dashDist, minBound, maxBound);
 
           // Try landing cleanly on a platform/bar near targetX & player's height!
           const surf = findLandingSurface(level, rawTargetX, this.w, player.y + player.h, this.y + this.h);
@@ -483,9 +485,9 @@ window.SR = window.SR || {};
             if (!insideSolid) {
               validX = rawTargetX;
               validY = destY;
-              // Adopt new platform patrol bounds so Shiba fights naturally on the new platform!
-              this.patrolMin = Math.min(surf.minX, validX);
-              this.patrolMax = Math.max(surf.maxX, validX + this.w);
+              // Adopt new platform patrol bounds (kept strictly inside arena when summoned by boss!)
+              this.patrolMin = SR.clamp(Math.min(surf.minX, validX), minBound, maxBound + this.w);
+              this.patrolMax = SR.clamp(Math.max(surf.maxX, validX + this.w), minBound, maxBound + this.w);
             }
           }
 

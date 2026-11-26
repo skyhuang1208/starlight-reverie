@@ -65,7 +65,6 @@ window.SR = window.SR || {};
       this.bladeSurgeTimer = 0;
       this.bladeSurgeAngle = 0;
       this.bladeSurgeTick = 0;
-      this.bladeSurgeHitCooldowns = new Map();
 
       // Pip Ult multi-wave Solar Nova state
       this.ultWavesLeft = 0;

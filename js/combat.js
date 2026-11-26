@@ -259,12 +259,16 @@ window.SR = window.SR || {};
         if (SR.aabb(pbox, player)) {
           const pushDir = ep.vx !== 0 ? Math.sign(ep.vx) : (player.cx >= ep.x ? 1 : -1);
           if (ep.pushForce) {
-            // Shiba's Bark Sound Wave pushes the player back a noticeable distance!
-            player.applyKnockbackPush(pushDir, ep.pushForce, ep.pushLift || -210, game.level ? game.level.solids : null);
-            SR.particles.spawnRing(ep.x, ep.y, '#ffe58f', 54, 0.26);
-            SR.particles.spawnText(player.cx, player.y - 18, '汪！擊退！', '#ffe58f', 1.0);
-            player.takeDamage(1, pushDir, game, true); // preserve strong bark push!
-            projs.splice(i, 1);
+            // Shiba's Bark Sound Wave pushes the player back a noticeable distance (skip push if invulnerable/God-Mode!)
+            if (player.invulnTimer <= 0 && !(game.cheats && game.cheats.godMode)) {
+              player.applyKnockbackPush(pushDir, ep.pushForce, ep.pushLift || -210, game.level ? game.level.solids : null);
+              SR.particles.spawnRing(ep.x, ep.y, '#ffe58f', 54, 0.26);
+              SR.particles.spawnText(player.cx, player.y - 18, '汪！擊退！', '#ffe58f', 1.0);
+            }
+            const hit = player.takeDamage(1, pushDir, game, true); // preserve strong bark push!
+            if (hit || (game.cheats && game.cheats.godMode)) {
+              projs.splice(i, 1);
+            }
           } else {
             const hit = player.takeDamage(1, pushDir, game);
             if (hit || (game.cheats && game.cheats.godMode)) {

@@ -160,13 +160,13 @@ window.SR = window.SR || {};
     malakor: { hp: 1240, score: 6800, spd: 1.4, p1: '#ff6e96', p2: '#ffcf6b', meteors: 8, minions: ['shadow_dasher', 'prism_turret'], wakeText: '✦ ECLIPSE CATACLYSM ✦' }
   };
 
-  // Human Final Boss Specs (Buffed! Stage 3 = Stock Trader, Stage 5 = Super-Buffed Mika!)
+  // Human Final Boss Specs (Progressive S1 -> S5 escalation!)
   const HUMAN_BOSS_SPECS = {
-    human_grandma: { hp: 920, score: 3000, spd: 1.22, wakeText: '✦ 阿嬤真正生氣囉！！ ✦', color: '#ffbae0' },
-    human_athlete: { hp: 1020, score: 3600, spd: 1.3, wakeText: '✦ 全力錦標賽模式！！ ✦', color: '#ffe58f' },
-    human_trader: { hp: 1120, score: 4200, spd: 1.34, wakeText: '✦ ALL-IN 漲停鎖死！！ ✦', color: '#ff6b78' },
-    human_engineer: { hp: 1220, score: 4800, spd: 1.38, wakeText: '✦ PRODUCTION DOWN！！ ✦', color: '#9cf5e3' },
-    human_jk: { hp: 1380, score: 6200, spd: 1.42, wakeText: '✦ 放學全力社團特訓＋快炒爆發！！ ✦', color: '#ff9fd6' }
+    human_grandma: { hp: 960, score: 3000, spd: 1.20, wakeText: '✦ 阿嬤真正生氣囉！！ ✦', color: '#ffbae0' },
+    human_athlete: { hp: 1100, score: 3600, spd: 1.28, wakeText: '✦ 全力錦標賽模式！！ ✦', color: '#ffe58f' },
+    human_trader: { hp: 1240, score: 4200, spd: 1.35, wakeText: '✦ ALL-IN 漲停鎖死！！ ✦', color: '#ff6b78' },
+    human_engineer: { hp: 1380, score: 4800, spd: 1.41, wakeText: '✦ PRODUCTION DOWN！！ ✦', color: '#9cf5e3' },
+    human_jk: { hp: 1460, score: 6200, spd: 1.44, wakeText: '✦ 放學全力社團特訓＋快炒爆發！！ ✦', color: '#ff9fd6' }
   };
 
   // Leaderboard API Endpoint (Cloudflare Workers + KV).

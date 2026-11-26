@@ -1297,55 +1297,6 @@ window.SR = window.SR || {};
         ctx.closePath(); ctx.fill();
         ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.moveTo(-10, 0); ctx.lineTo(15, 0); ctx.stroke();
-      } else if (p.kind === 'silver_prism_lance') {
-        // Pip Skill & Ult Fan: Mirror-Silver Prism Flechettes!
-        ctx.rotate(Math.atan2(p.vy, p.vx));
-        const s = p.r / 12;
-        ctx.shadowColor = '#b4e8ff';
-        ctx.shadowBlur = 16;
-        // Translucent icy-silver outer diamond
-        ctx.fillStyle = 'rgba(180, 224, 255, 0.72)';
-        ctx.beginPath();
-        ctx.moveTo(-19 * s, 0); ctx.lineTo(-4 * s, -8.5 * s); ctx.lineTo(21 * s, 0); ctx.lineTo(-4 * s, 8.5 * s);
-        ctx.closePath(); ctx.fill();
-        // Brushed chrome inner blade
-        const lg = ctx.createLinearGradient(0, -6 * s, 0, 6 * s);
-        lg.addColorStop(0, '#ffffff');
-        lg.addColorStop(0.5, '#d6e4f5');
-        lg.addColorStop(1, '#8499b5');
-        ctx.fillStyle = lg;
-        ctx.beginPath();
-        ctx.moveTo(-15 * s, 0); ctx.lineTo(-2 * s, -5.5 * s); ctx.lineTo(18 * s, 0); ctx.lineTo(-2 * s, 5.5 * s);
-        ctx.closePath(); ctx.fill();
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.moveTo(-10 * s, 0); ctx.lineTo(14 * s, 0); ctx.lineTo(-2 * s, -2.5 * s);
-        ctx.closePath(); ctx.fill();
-      } else if (p.kind === 'silver_railbeam') {
-        // Pip Ultimate Centerpiece: Liquid-Silver Chrome Railgun Hyper-Lance!
-        ctx.rotate(Math.atan2(p.vy, p.vx));
-        ctx.shadowColor = '#b8e8ff';
-        ctx.shadowBlur = 24;
-        const bg = ctx.createLinearGradient(0, -18, 0, 18);
-        bg.addColorStop(0, '#8ba4c4');
-        bg.addColorStop(0.25, '#e8f5ff');
-        bg.addColorStop(0.5, '#ffffff');
-        bg.addColorStop(0.75, '#c2d8f2');
-        bg.addColorStop(1, '#7189ab');
-        ctx.fillStyle = bg;
-        ctx.beginPath();
-        ctx.moveTo(-48, -12); ctx.lineTo(22, -16); ctx.lineTo(48, 0); ctx.lineTo(22, 16); ctx.lineTo(-48, 12);
-        ctx.closePath(); ctx.fill();
-        ctx.fillStyle = '#ffffff';
-        SR.roundRect(ctx, -38, -6, 68, 12, 6); ctx.fill();
-        // Kinetic chrome shockwave chevrons
-        ctx.strokeStyle = 'rgba(220, 244, 255, 0.9)';
-        ctx.lineWidth = 2.8;
-        [-18, 4].forEach((cx) => {
-          ctx.beginPath();
-          ctx.moveTo(cx - 10, -22); ctx.lineTo(cx + 8, 0); ctx.lineTo(cx - 10, 22);
-          ctx.stroke();
-        });
       } else if (p.kind === 'golden_bullet') {
         // Pip Skill & Ult: Gleaming Molten-Gold Armor-Piercing Bullet!
         ctx.rotate(Math.atan2(p.vy, p.vx));
@@ -1521,13 +1472,16 @@ window.SR = window.SR || {};
         ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(0, 6, p.r, Math.PI, 0); ctx.closePath(); ctx.fill();
         ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(0, 6, p.r * 0.5, Math.PI, 0); ctx.closePath(); ctx.fill();
       } else if (p.kind === 'code' || p.kind === 'error_drop') {
-        const w = p.kind === 'error_drop' ? 46 : 38;
-        const h = p.kind === 'error_drop' ? 28 : 22;
+        const label = p.label || '{ }';
+        ctx.font = p.kind === 'error_drop' ? '800 10px Consolas, monospace' : '800 10.5px Consolas, monospace';
+        const tw = ctx.measureText(label).width;
+        const w = Math.max(p.kind === 'error_drop' ? 48 : 40, Math.ceil(tw) + 14);
+        const h = p.kind === 'error_drop' ? 26 : 22;
         ctx.fillStyle = 'rgba(18, 28, 38, 0.92)';
         SR.roundRect(ctx, -w * 0.5, -h * 0.5, w, h, 6); ctx.fill();
         ctx.strokeStyle = p.color; ctx.lineWidth = 2; ctx.stroke();
-        ctx.font = '800 11px Consolas, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillStyle = p.color; ctx.fillText(p.label || '{ }', 0, 1);
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = p.color; ctx.fillText(label, 0, 1);
       } else if (p.kind === 'scold') {
         ctx.fillStyle = '#fff5fb'; SR.roundRect(ctx, -34, -13, 68, 24, 10); ctx.fill();
         ctx.strokeStyle = '#ff7eb6'; ctx.lineWidth = 2; ctx.stroke();
