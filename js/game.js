@@ -232,28 +232,6 @@ window.SR = window.SR || {};
       }
     }
 
-    async handleLeaderboardReset() {
-      if (!SR.leaderboard) return;
-      const isCloud = SR.leaderboard.isCloudEnabled();
-      if (!isCloud) {
-        const ok = window.confirm('Reset ALL local leaderboard records from scratch? · 確定要清空所有本機排行榜紀錄嗎？');
-        if (!ok) return;
-        SR.leaderboard.resetLocal('all');
-        await this.openLeaderboardModal(this.activeLeaderboardTab, this.activeLeaderboardChar);
-        SR.audio.pickup(false);
-        return;
-      }
-      const key = window.prompt('Admin Reset Key (wipes ALL Global Leaderboard boards) · 請輸入管理員密鑰以重置全部排行榜：');
-      if (!key) return;
-      const res = await SR.leaderboard.adminReset('all', key);
-      if (res && res.ok) {
-        window.alert('All Global Leaderboard boards have been reset! · 全球排行榜已全部重置！');
-        await this.openLeaderboardModal(this.activeLeaderboardTab, this.activeLeaderboardChar);
-      } else {
-        window.alert(`Reset failed (${(res && res.error) || 'error'}). Check your Admin Reset Key.`);
-      }
-    }
-
     clearBossVictoryTimeout() {
       if (this.bossVictoryTimeout) {
         clearTimeout(this.bossVictoryTimeout);
@@ -413,7 +391,6 @@ window.SR = window.SR || {};
         lbList: $('lb-list'),
         lbModeBadge: $('lb-mode-badge'),
         btnLbRefresh: $('btn-lb-refresh'),
-        btnLbReset: $('btn-lb-reset'),
         btnLbClose: $('btn-lb-close'),
         menuPlayerName: $('menu-player-name'),
         hudPlayerName: $('hud-player-name'),
@@ -509,9 +486,6 @@ window.SR = window.SR || {};
       }
       if (this.el.btnLbRefresh) {
         this.el.btnLbRefresh.addEventListener('click', () => this.openLeaderboardModal(this.activeLeaderboardTab, this.activeLeaderboardChar));
-      }
-      if (this.el.btnLbReset) {
-        this.el.btnLbReset.addEventListener('click', () => this.handleLeaderboardReset());
       }
       document.querySelectorAll('#lb-tabs .lb-tab-btn').forEach((btn) => {
         btn.addEventListener('click', () => this.openLeaderboardModal(btn.dataset.board, null));
