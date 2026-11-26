@@ -311,8 +311,8 @@ export default {
       return json({ ok: true, board, improved, rank: rank || null, entries: updated }, 200, headers);
     }
 
-    // 4) POST /api/admin/reset — Owner-only reset protected by encrypted ADMIN_RESET_KEY secret
-    // Body: { board: "all" | "campaign" | "stage_1".."stage_5" }, Header: X-Admin-Key: <ADMIN_RESET_KEY>
+    // 4) POST /api/admin/reset — Owner-only reset (full board OR single player when body.name is provided)
+    // Body: { board: "all" | "campaign" | "stage_1".."stage_5", name?: string, charId?: string }, Header: X-Admin-Key: <ADMIN_RESET_KEY>
     if (request.method === 'POST' && url.pathname === '/api/admin/reset') {
       if (!env.ADMIN_RESET_KEY || env.ADMIN_RESET_KEY.length < 12) {
         return json({ error: 'admin_reset_not_configured' }, 503, headers);
@@ -329,6 +329,32 @@ export default {
       if (boardsToClear.length === 0) {
         return json({ error: 'invalid_board' }, 400, headers);
       }
+
+      if (body.name !== undefined) {
+        const targetName = sanitizeName(body.name);
+        if (!targetName) {
+          return json({ error: 'invalid_name' }, 400, headers);
+        }
+        const targetKey = normNameKey(targetName);
+        const filterChar = body.charId && VALID_CHARS.has(body.charId) ? body.charId : null;
+        let totalRemoved = 0;
+        const perBoard = {};
+        for (const b of boardsToClear) {
+          const kvKey = `scores:${b}`;
+          const current = (await env.LEADERBOARD_KV.get(kvKey, { type: 'json' })) || [];
+          const kept = current.filter(
+            (e) => !(e && normNameKey(e.name) === targetKey && (!filterChar || e.charId === filterChar))
+          );
+          const removed = current.length - kept.length;
+          if (removed > 0) {
+            await env.LEADERBOARD_KV.put(kvKey, JSON.stringify(kept));
+          }
+          totalRemoved += removed;
+          perBoard[b] = { removed, remaining: kept.length };
+        }
+        return json({ ok: true, mode: 'delete_player', name: targetName, totalRemoved, perBoard }, 200, headers);
+      }
+
       for (const b of boardsToClear) {
         await env.LEADERBOARD_KV.put(`scores:${b}`, '[]');
       }
