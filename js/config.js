@@ -161,16 +161,27 @@ window.SR = window.SR || {};
     zephyra: { hp: 1760, score: 3800, spd: 1.10, p1: '#8ceeff', p2: '#ffe999', meteors: 4, minions: ['wisp', 'bomber'], wakeText: '✦ TEMPEST SERAPH ✦' },
     morpheus: { hp: 1920, score: 4400, spd: 1.14, p1: '#d29eff', p2: '#ff9fd6', meteors: 5, minions: ['shadow_dasher', 'wisp'], wakeText: '✦ MIDNIGHT CHIME ✦' },
     glaciella: { hp: 2100, score: 5000, spd: 1.18, p1: '#a2f6ff', p2: '#d9c2ff', meteors: 5, minions: ['prism_turret', 'knight'], wakeText: '✦ SHATTERED MOON ✦' },
-    malakor: { hp: 2480, score: 6800, spd: 1.22, p1: '#ff6e96', p2: '#ffcf6b', meteors: 5, minions: ['shadow_dasher', 'prism_turret'], wakeText: '✦ ECLIPSE CATACLYSM ✦' }
+    malakor: { hp: 2480, score: 5500, spd: 1.22, p1: '#ff6e96', p2: '#ffcf6b', meteors: 5, minions: ['shadow_dasher', 'prism_turret'], wakeText: '✦ ECLIPSE CATACLYSM ✦' }
   };
 
   // Human Final Boss Specs (Progressive S1 -> S5 escalation, 2x HP, tuned projectile density)
   const HUMAN_BOSS_SPECS = {
-    human_grandma: { hp: 1800, score: 3000, spd: 1.04, wakeText: '✦ 阿嬤真正生氣囉！！ ✦', color: '#ffbae0' },
-    human_athlete: { hp: 2040, score: 3600, spd: 1.10, wakeText: '✦ 全力錦標賽模式！！ ✦', color: '#ffe58f' },
-    human_trader: { hp: 2280, score: 4200, spd: 1.16, wakeText: '✦ ALL-IN 漲停鎖死！！ ✦', color: '#ff6b78' },
-    human_engineer: { hp: 2520, score: 4800, spd: 1.21, wakeText: '✦ PRODUCTION DOWN！！ ✦', color: '#9cf5e3' },
-    human_jk: { hp: 2760, score: 6200, spd: 1.26, wakeText: '✦ 放學全力社團特訓＋快炒爆發！！ ✦', color: '#ff9fd6' }
+    human_grandma: { hp: 1800, score: 6000, spd: 1.04, wakeText: '✦ 阿嬤真正生氣囉！！ ✦', color: '#ffbae0' },
+    human_athlete: { hp: 2040, score: 7000, spd: 1.10, wakeText: '✦ 全力錦標賽模式！！ ✦', color: '#ffe58f' },
+    human_trader: { hp: 2280, score: 8000, spd: 1.16, wakeText: '✦ ALL-IN 漲停鎖死！！ ✦', color: '#ff6b78' },
+    human_engineer: { hp: 2520, score: 9000, spd: 1.21, wakeText: '✦ PRODUCTION DOWN！！ ✦', color: '#9cf5e3' },
+    human_jk: { hp: 2760, score: 11000, spd: 1.26, wakeText: '✦ 放學全力社團特訓＋快炒爆發！！ ✦', color: '#ff9fd6' }
+  };
+
+  // Tuned Clear-First Scoring Parameters (1-Try credit + meaningful retry penalty)
+  const SCORING = {
+    comboCap: 20,
+    comboPerStack: 5,
+    retryPenalty: 1500,
+    hpBonusPerHp: 250,
+    stageClearBonus: [3000, 3500, 4000, 4500, 5000],
+    oneTryBonus: [3500, 4000, 4500, 5000, 5500],
+    fullCampaignBonus: 5000
   };
 
   // Leaderboard API Endpoint (Cloudflare Workers + KV).
@@ -182,6 +193,7 @@ window.SR = window.SR || {};
   SR.VIEW_W = VIEW_W;
   SR.VIEW_H = VIEW_H;
   SR.LEADERBOARD_API_URL = LEADERBOARD_API_URL;
+  SR.SCORING = SCORING;
   SR.nextEntityId = nextEntityId;
   SR.resetEntityIds = resetEntityIds;
   SR.aabb = aabb;

@@ -1090,11 +1090,12 @@ window.SR = window.SR || {};
           SR.leaderboard.startRun(charId, this.chainStartStage);
         }
       } else if (effectiveFromCp) {
-        // Fair Checkpoint Respawn: rolls current stage back to checkpointSnapshot minus 500 pts (min 0),
+        // Fair Checkpoint Respawn: rolls current stage back to checkpointSnapshot minus 1500 pts (min 0),
         // preserves earlier cleared stages in chainLockedScore, and increments death counters!
         this.stageDeaths++;
         this.chainDeaths++;
-        this.score = Math.max(0, this.checkpointSnapshot.score - 500);
+        const retryPenalty = (SR.SCORING && SR.SCORING.retryPenalty) || 1500;
+        this.score = Math.max(0, this.checkpointSnapshot.score - retryPenalty);
         this.kills = this.checkpointSnapshot.kills;
         this.checkpointSnapshot = { score: this.score, kills: this.kills };
         if (this.cheats.godMode || this.cheats.onePunch) this.usedCheats = true;
@@ -1218,7 +1219,8 @@ window.SR = window.SR || {};
       // Boss-summoned reinforcements award 0 score to prevent stalling a boss for infinite score farming!
       if (!e.isBossSummon && !this.runFinalized) {
         this.kills++;
-        const comboBonus = Math.min(this.combo, 25) * 15;
+        const sc = SR.SCORING || { comboCap: 20, comboPerStack: 5 };
+        const comboBonus = Math.min(this.combo, sc.comboCap) * sc.comboPerStack;
         this.score += e.score + comboBonus;
       } else if (e.isBossSummon) {
         SR.particles.spawnText(e.cx, e.y - 16, '增援擊破', '#9cf5e3', 0.9);
@@ -1265,17 +1267,26 @@ window.SR = window.SR || {};
         });
       } else if (boss.arena.id === 'finalboss') {
         this.stagesCleared++;
-        // Fair Stage Clear Bonuses: HP Bonus (+150/HP) + Clean No-Death Stage Bonus (+500)
+        // Clear-first Stage Bonuses: Stage Clear Bonus + Substantial 1-Try (0-Death) Bonus + HP Bonus (+250/HP)
         // Full 5-Stage Clear Bonus (+5,000) applies ONLY to the 5-Stage Combined total (keeps Stage 5 board fair!)
         if (!this.runFinalized && this.player) {
-          const hpBonus = this.player.hp * 150;
-          const noDeathBonus = this.stageDeaths === 0 ? 500 : 0;
-          const stageBonus = hpBonus + noDeathBonus;
+          const sc = SR.SCORING || {
+            hpBonusPerHp: 250,
+            stageClearBonus: [3000, 3500, 4000, 4500, 5000],
+            oneTryBonus: [3500, 4000, 4500, 5000, 5500]
+          };
+          const clearBonus = sc.stageClearBonus[this.selectedMapIndex] ?? 3000;
+          const oneTryBonus = this.stageDeaths === 0 ? (sc.oneTryBonus[this.selectedMapIndex] ?? 3500) : 0;
+          const hpBonus = this.player.hp * sc.hpBonusPerHp;
+          const stageBonus = clearBonus + oneTryBonus + hpBonus;
           this.score += stageBonus;
           if (this.chainStartStage === 1 && this.selectedMapIndex >= SR.MAPS.length - 1 && this.stagesCleared >= SR.MAPS.length) {
             this.chainBonusAwarded = true;
           }
-          const bonusTxt = this.chainBonusAwarded ? `+${stageBonus} STAGE & +5000 5-STAGE ✦` : `+${stageBonus} CLEAR BONUS ✦`;
+          const tag = oneTryBonus > 0 ? '1-TRY CLEAR BONUS' : 'CLEAR BONUS';
+          const bonusTxt = this.chainBonusAwarded
+            ? `+${stageBonus.toLocaleString()} ${tag} & +5,000 5-STAGE ✦`
+            : `+${stageBonus.toLocaleString()} ${tag} ✦`;
           SR.particles.spawnText(boss.cx, boss.cy - 34, bonusTxt, '#ffe58f', 1.25);
         }
         SR.audio.victory();

@@ -142,7 +142,7 @@ window.SR = window.SR || {};
     constructor(arena) {
       const variant = arena.variant || 'dewdrop';
       const baseHp = variant === 'pyro' ? 1640 : (variant === 'frost' ? 1360 : 1080);
-      const baseScore = variant === 'pyro' ? 3200 : (variant === 'frost' ? 2800 : 1500);
+      const baseScore = variant === 'pyro' ? 5500 : (variant === 'frost' ? 4200 : 2500);
       super(arena, {
         w: 80, h: 86, hp: baseHp,
         score: baseScore,

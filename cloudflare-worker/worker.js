@@ -20,12 +20,12 @@ const VALID_BOARDS = new Set(['campaign', 'stage_1', 'stage_2', 'stage_3', 'stag
 
 // Mathematical upper-bound score ceilings per board
 const BOARD_CEILINGS = {
-  campaign: 165000,
-  stage_1: 30000,
-  stage_2: 33000,
-  stage_3: 36000,
-  stage_4: 38000,
-  stage_5: 44000
+  campaign: 205000,
+  stage_1: 33000,
+  stage_2: 37000,
+  stage_3: 40000,
+  stage_4: 43000,
+  stage_5: 47000
 };
 
 function getAllowedOrigins(env) {
@@ -190,7 +190,7 @@ function isPlausibleScore(entry, token, nowMs) {
 
   const ceiling = BOARD_CEILINGS[entry.board] || 35000;
   const fullCampaignBonus = (entry.board === 'campaign' && token.startStage === 1 && entry.cleared && entry.stagesCleared >= 5) ? 5000 : 0;
-  const maxByKills = entry.kills * 1100 + entry.stagesCleared * 14500 + fullCampaignBonus + 4500;
+  const maxByKills = entry.kills * 750 + entry.stagesCleared * 30500 + fullCampaignBonus + 7500;
   if (entry.score <= 0 || entry.score > Math.min(maxByKills, ceiling)) return false;
   return true;
 }

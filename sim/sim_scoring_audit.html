@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Starlight Reverie — Scoring Balance &amp; Imperfect-Scenario Audit</title>
+</head>
+<body>
+  <pre id="sim-output">RUNNING...</pre>
+
+  <script>window.SR = window.SR || {};</script>
+  <script src="../js/config.js"></script>
+  <script src="../js/enemies.js"></script>
+  <script src="../js/bosses.js"></script>
+  <script src="../js/level.js"></script>
+
+  <script>
+    (function () {
+      const out = [];
+      const errors = [];
+      window.addEventListener('error', (ev) => errors.push(ev.message || String(ev)));
+      function assert(cond, msg) {
+        out.push((cond ? 'PASS: ' : 'FAIL: ') + msg);
+        if (!cond) errors.push('ASSERTION FAILED: ' + msg);
+      }
+
+      try {
+        const sc = SR.SCORING;
+        assert(!!sc && sc.retryPenalty === 1500 && sc.comboCap === 20 && sc.comboPerStack === 5,
+          'SR.SCORING exported cleanly');
+
+        // Mirror Cloudflare Worker limits so frontend & backend never drift out of sync
+        const WORKER_CEILINGS = {
+          campaign: 205000,
+          stage_1: 33000,
+          stage_2: 37000,
+          stage_3: 40000,
+          stage_4: 43000,
+          stage_5: 47000
+        };
+
+        const scenarios = [
+          { key: 'perfect',   name: '1) Perfect 1-Try Clear (100% mobs, max combo, 6HP)',    kf: 1.00, cb: 20, sf: 1.00, df: 10, mid: 1, fin: 1, d: 0, hp: 6 },
+          { key: 'clean',     name: '2) Clean 1-Try Clear (85% mobs, avg combo, 4HP)',       kf: 0.85, cb: 10, sf: 0.65, df: 5,  mid: 1, fin: 1, d: 0, hp: 4 },
+          { key: 'speedrun',  name: '3) Speedrun 1-Try Clear (60% mobs, low combo, 3HP)',    kf: 0.60, cb: 5,  sf: 0.40, df: 3,  mid: 1, fin: 1, d: 0, hp: 3 },
+          { key: 'zeroMob',   name: '3b) Minimal-Kill Speedrun Clear (0 mobs, 1HP, 0d)',     kf: 0.00, cb: 0,  sf: 0.00, df: 0,  mid: 1, fin: 1, d: 0, hp: 1 },
+          { key: 'retry1',    name: '4) Imperfect 1-Retry Clear (85% mobs, avg combo, 3HP)', kf: 0.85, cb: 9,  sf: 0.65, df: 5,  mid: 1, fin: 1, d: 1, hp: 3 },
+          { key: 'retry2',    name: '5) Imperfect 2-Retry Clear (85% mobs, avg combo, 2HP)', kf: 0.85, cb: 8,  sf: 0.65, df: 4,  mid: 1, fin: 1, d: 2, hp: 2 },
+          { key: 'retry3',    name: '6) Struggling 3-Retry Clear (80% mobs, low combo, 1HP)',kf: 0.80, cb: 6,  sf: 0.55, df: 4,  mid: 1, fin: 1, d: 3, hp: 1 },
+          { key: 'grinder5',  name: '7) Grinder 5-Retry Clear (95% mobs, high combo, 1HP)',  kf: 0.95, cb: 15, sf: 0.80, df: 8,  mid: 1, fin: 1, d: 5, hp: 1 },
+          { key: 'failSonia', name: '8) Fail @ Final Boss (Sonia: 95% mobs, high combo, 0d)',kf: 0.95, cb: 17, sf: 0.80, df: 6,  mid: 1, fin: 0, d: 0, hp: 0 },
+          { key: 'failCas',   name: '9) Fail @ Final Boss (Casual: 75% mobs, avg combo, 1d)',kf: 0.75, cb: 8,  sf: 0.50, df: 3,  mid: 1, fin: 0, d: 1, hp: 0 },
+          { key: 'failMid',   name: '10) Fail @ Mid-Boss (50% mobs, avg combo, 0d)',         kf: 0.50, cb: 8,  sf: 0.40, df: 2,  mid: 0, fin: 0, d: 0, hp: 0 }
+        ];
+
+        function instantiateBoss(arena) {
+          if (arena.bossClass === 'golem') return new SR.MidBoss(arena);
+          if (arena.bossClass === 'human') return new SR.HumanBoss(arena);
+          return new SR.FinalBoss(arena);
+        }
+
+        let perfectCampaignTotal = sc.fullCampaignBonus;
+        for (let sIdx = 0; sIdx < 5; sIdx++) {
+          const level = SR.createLevel(sIdx);
+          const mobTotal = level.enemySpawns.reduce((acc, sp) => acc + SR.ENEMY_ARCHETYPES[sp.type].score, 0);
+          const mobCount = level.enemySpawns.length;
+          const starCount = level.pickups.filter((pk) => pk.kind === 'star').length;
+          const midBoss = instantiateBoss(level.bossArenas.midboss);
+          const finBoss = instantiateBoss(level.bossArenas.finalboss);
+
+          const boardKey = `stage_${sIdx + 1}`;
+          out.push(`\n--- Stage ${sIdx + 1} (mobs=${mobCount} base=${mobTotal}, stars=${starCount}, Mid=${midBoss.score}, Final=${finBoss.score}, Clear=+${sc.stageClearBonus[sIdx]}, 1-Try=+${sc.oneTryBonus[sIdx]}, Retry=-${sc.retryPenalty}) ---`);
+
+          const byKey = {};
+          for (const scen of scenarios) {
+            const mobKills = Math.round(mobCount * scen.kf);
+            const kills = mobKills + scen.mid + scen.fin;
+            const mobPts = Math.round(mobTotal * scen.kf);
+            const comboPts = mobKills * (Math.min(scen.cb, sc.comboCap) * sc.comboPerStack);
+            const starPts = Math.round(starCount * scen.sf) * 75;
+            const defPts = scen.df * 40;
+            const bossPts = scen.mid * midBoss.score + scen.fin * finBoss.score;
+            const clearBonus = scen.fin === 1 ? sc.stageClearBonus[sIdx] : 0;
+            const oneTryBonus = (scen.fin === 1 && scen.d === 0) ? sc.oneTryBonus[sIdx] : 0;
+            const hpBonus = scen.fin === 1 ? scen.hp * sc.hpBonusPerHp : 0;
+            const penalty = scen.d * sc.retryPenalty;
+            const total = Math.max(0, mobPts + comboPts + starPts + defPts + bossPts + clearBonus + oneTryBonus + hpBonus - penalty);
+            const maxByKills = kills * 750 + scen.fin * 30500 + 7500;
+            byKey[scen.key] = { total, maxByKills, kills };
+            out.push(`  ${scen.name.padEnd(56)} => ${String(total).padStart(6)}  (maxByKills=${maxByKills})`);
+          }
+
+          perfectCampaignTotal += byKey.perfect.total;
+
+          assert(byKey.perfect.total > byKey.clean.total &&
+                 byKey.clean.total > byKey.speedrun.total &&
+                 byKey.speedrun.total > byKey.retry1.total &&
+                 byKey.retry1.total > byKey.retry2.total &&
+                 byKey.retry2.total > byKey.retry3.total &&
+                 byKey.retry3.total > byKey.failSonia.total &&
+                 byKey.failSonia.total > byKey.failCas.total &&
+                 byKey.failCas.total > byKey.failMid.total,
+            `Stage ${sIdx + 1}: Strict ordering Perfect > Clean > Speedrun > 1-Retry > 2-Retry > 3-Retry > Fail@Final > CasualFail > Fail@Mid`);
+
+          assert(byKey.clean.total - byKey.failSonia.total >= 10000,
+            `Stage ${sIdx + 1}: Clean 1-Try Clear beats Sonia-style failure by >= 10,000 pts (diff=${byKey.clean.total - byKey.failSonia.total})`);
+
+          assert(byKey.perfect.total <= WORKER_CEILINGS[boardKey] &&
+                 byKey.perfect.total <= byKey.perfect.maxByKills &&
+                 byKey.zeroMob.total <= byKey.zeroMob.maxByKills,
+            `Stage ${sIdx + 1}: Perfect (${byKey.perfect.total}) & 0-Mob Clear (${byKey.zeroMob.total}) pass Worker ceilings (${WORKER_CEILINGS[boardKey]}, maxByKills=${byKey.zeroMob.maxByKills})`);
+        }
+
+        assert(perfectCampaignTotal <= WORKER_CEILINGS.campaign,
+          `5-Stage Perfect Campaign total (${perfectCampaignTotal}) fits under Worker ceiling (${WORKER_CEILINGS.campaign})`);
+
+        assert(errors.length === 0, 'Zero uncaught runtime errors or assertion failures');
+      } catch (e) {
+        errors.push('FATAL: ' + (e && e.stack ? e.stack : String(e)));
+      } finally {
+        out.push('\nERRORS_COUNT=' + errors.length);
+        if (errors.length) out.push(errors.join('\n'));
+        document.getElementById('sim-output').textContent = out.join('\n');
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -62,9 +62,20 @@
           };
         }
 
-        // 1) Version & Audio SFX
+        // 1) Version, Audio SFX & Tuned Scoring Constants
         assert(SR.GAME_VERSION === 'v1.0.0', `SR.GAME_VERSION === 'v1.0.0'`);
         assert(typeof SR.audio.bark === 'function' && typeof SR.audio.meow === 'function', 'SR.audio.bark & meow exist');
+        {
+          const sc = SR.SCORING;
+          const lvl0 = SR.createLevel(0), lvl3 = SR.createLevel(3), lvl4 = SR.createLevel(4);
+          const m0 = new SR.MidBoss(lvl0.bossArenas.midboss);
+          const m3 = new SR.MidBoss(lvl3.bossArenas.midboss);
+          const m4 = new SR.FinalBoss(lvl4.bossArenas.midboss);
+          assert(sc && sc.retryPenalty === 1500 && sc.comboCap === 20 && sc.comboPerStack === 5 && sc.hpBonusPerHp === 250,
+            `SR.SCORING: retryPenalty=${sc && sc.retryPenalty}, combo=${sc && sc.comboCap}x${sc && sc.comboPerStack}, hpBonus=${sc && sc.hpBonusPerHp}`);
+          assert(SR.HUMAN_BOSS_SPECS.human_grandma.score === 6000 && m0.score === 2500 && m3.score === 4200 && m4.score === 5500,
+            `Boss scores updated (grandma=6000, golem=${m0.score}/${m3.score}, malakor=${m4.score})`);
+        }
 
         // 2) Skill 2-Charge, Cooldowns (+1s) & 30s Ult CD
         const expectedCds = { blade: 3.3, gun: 3.5, magic: 3.8 };
