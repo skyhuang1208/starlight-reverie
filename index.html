@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Starlight Reverie · 夢光幻境 — A 5-stage pastel-fantasy 2D side-scrolling action platformer featuring Luna, Pip & Lyra vs. quirky modern bosses!" />
+  <meta property="og:title" content="Starlight Reverie · 夢光幻境" />
+  <meta property="og:description" content="Play 5 dreamy action-platformer stages directly in your browser — 3 heroes, elemental magic, silver guns, blue-white 劍氣 & unforgettable bosses!" />
+  <meta property="og:type" content="website" />
+  <title>Starlight Reverie · 夢光幻境</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="game-shell">
+    <canvas id="game-canvas" width="1200" height="680"></canvas>
+
+    <!-- Top In-Game HUD -->
+    <div id="hud" class="hidden">
+      <div class="hud-left">
+        <div class="char-badge">
+          <canvas id="hud-portrait" width="54" height="54"></canvas>
+          <div class="char-meta">
+            <div class="char-title-row">
+              <span id="hud-char-name">Luna</span>
+              <span id="hud-char-role" class="pill">Magic</span>
+              <span id="hud-stage-pill" class="pill stage-pill">Stage 1/5</span>
+            </div>
+            <div id="hud-hearts" class="hearts-row"></div>
+            <div id="hud-cheats-active" class="cheat-badges hidden"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hud-center">
+        <div id="territory-banner" class="territory-banner">
+          <span id="territory-name">Pastel Meadow</span>
+          <span id="territory-sub">花夢草原</span>
+        </div>
+        <div id="boss-bar-wrap" class="boss-bar-wrap hidden">
+          <div class="boss-name-row">
+            <span id="boss-name">Boss</span>
+            <span id="boss-phase-tag" class="pill boss-pill">Phase I</span>
+          </div>
+          <div class="boss-track">
+            <div id="boss-hp-fill" class="boss-hp-fill"></div>
+            <div class="boss-phase-mark" style="left: 55%"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hud-right">
+        <div class="hud-right-top">
+          <div class="stats-pill">
+            <span class="stat-item"><span class="star-icon">✦</span> <span id="hud-score">0</span></span>
+            <span class="stat-divider"></span>
+            <span class="stat-item combo-wrap hidden" id="hud-combo-wrap">
+              <span id="hud-combo">0</span>x
+            </span>
+          </div>
+          <div class="hud-actions">
+            <button id="btn-mute" class="icon-btn" title="Toggle Audio · 靜音切換 (M)">🔊</button>
+            <button id="btn-pause" class="icon-btn" title="Pause · 暫停 (Esc / P)">⏸</button>
+          </div>
+        </div>
+
+        <!-- Compact Circular Action Skill Bar tucked in Top-Right Sky (zero playfield obstruction!) -->
+        <div id="action-bar" class="hidden">
+          <div class="skill-slot slot-basic ready" id="slot-basic" title="Attack (1 or Left Click)">
+            <span class="slot-key">1 / LMB</span>
+            <span class="slot-icon" id="slot-basic-icon">✨</span>
+            <span class="slot-name">Attack</span>
+          </div>
+
+          <div class="skill-slot slot-skill ready" id="slot-skill" title="Skill (2 or Right Click)">
+            <div class="cd-mask" id="slot-skill-mask"></div>
+            <span class="slot-key">2 / RMB</span>
+            <span class="slot-icon" id="slot-skill-icon">🌙</span>
+            <span class="slot-cd-text hidden" id="slot-skill-cd"></span>
+            <span class="slot-name" id="slot-skill-name">Petal Ring</span>
+          </div>
+
+          <div class="skill-slot slot-ult ready" id="slot-ult" title="Ultimate (3 or Q)">
+            <div class="cd-mask" id="slot-ult-mask"></div>
+            <span class="slot-key">3 / Q</span>
+            <span class="slot-icon" id="slot-ult-icon">🌟</span>
+            <span class="slot-cd-text hidden" id="slot-ult-cd"></span>
+            <span class="slot-name" id="slot-ult-name">Supernova</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Subtle Controls & Stage Progress Bar -->
+    <div id="controls-bar" class="hidden">
+      <span><b>WASD</b> + <b>Space</b> + <b>LMB/RMB/Q</b></span>
+      <span class="ctrl-sep">or</span>
+      <span><b>←→↑↓</b> + <b>Space</b> + <b>1 / 2 / 3</b></span>
+      <span><b>Shift</b> Slide</span>
+      <span id="hud-checkpoint-tag" class="checkpoint-pill hidden">✦ Checkpoint Reached</span>
+      <div class="stage-progress-wrap" title="Stage Progress (Mid-Boss at 45%, Boss at 92%)">
+        <div class="stage-progress-track">
+          <div id="stage-progress-fill" class="stage-progress-fill"></div>
+          <span class="prog-dot prog-mid" style="left: 45%"></span>
+          <span class="prog-dot prog-boss" style="left: 93%"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Starter Menu: Large Adventure Map on TOP + 3 Playable Characters BELOW -->
+    <div id="menu-overlay" class="overlay">
+      <div class="menu-card">
+        <div class="menu-header-row">
+          <div class="title-block">
+            <div class="eyebrow">✦ 5-STAGE DREAMLAND ADVENTURE ✦</div>
+            <h1 class="game-title">Starlight Reverie · 夢光幻境</h1>
+          </div>
+
+          <!-- 金手指 區 (Golden Finger Cheats) -->
+          <div class="cheat-panel" aria-label="Golden Finger Cheats">
+            <div class="cheat-panel-title">✨ 金手指區</div>
+            <label class="cheat-toggle">
+              <input type="checkbox" id="cheat-god" />
+              <span class="cheat-box"></span>
+              <span class="cheat-text">無敵不扣血 <small>No Damage</small></span>
+            </label>
+            <label class="cheat-toggle">
+              <input type="checkbox" id="cheat-onepunch" />
+              <span class="cheat-box"></span>
+              <span class="cheat-text">一拳必殺 <small>1-Punch KO</small></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- TOP HERO: Large Square-ish Fantasy Adventure Map + Selected Stage Dossier -->
+        <div class="adventure-map-row">
+          <div class="world-map-wrap">
+            <canvas id="world-map-canvas" width="560" height="356"></canvas>
+          </div>
+
+          <div class="stage-dossier">
+            <div class="dossier-top">
+              <span class="dossier-eyebrow" id="dossier-stage-tag">STAGE 1 / 5</span>
+              <span class="dossier-stars" id="dossier-stars">★☆☆☆☆</span>
+            </div>
+            <h2 class="dossier-title" id="dossier-title">Dreamlight Meadow</h2>
+            <div class="dossier-zh" id="dossier-zh">夢光草原 · 點選左側冒險地圖切換關卡</div>
+
+            <div class="dossier-bosses">
+              <div class="dossier-boss-row">
+                <span class="dossier-boss-label">🛡️ Mid-Boss</span>
+                <strong id="dossier-midboss">Celes-Bunny Golem · 露晶兔守護偶</strong>
+              </div>
+              <div class="dossier-boss-row">
+                <span class="dossier-boss-label">👑 Final Boss</span>
+                <strong id="dossier-finalboss">Grandma Lin · 巷口阿嬤</strong>
+              </div>
+            </div>
+
+            <div id="map-selected-caption" class="map-caption-hidden hidden"></div>
+
+            <div class="dossier-quick-nav" id="dossier-quick-nav">
+              <button type="button" class="stage-dot-btn active" data-map="0">1</button>
+              <button type="button" class="stage-dot-btn" data-map="1">2</button>
+              <button type="button" class="stage-dot-btn" data-map="2">3</button>
+              <button type="button" class="stage-dot-btn" data-map="3">4</button>
+              <button type="button" class="stage-dot-btn dot-hell" data-map="4">5</button>
+            </div>
+
+            <button id="btn-start" class="primary-btn dossier-start-btn" type="button">
+              <span>Enter Dreamland</span>
+              <span class="btn-sparkle">✦</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- BOTTOM ROW: 3 Playable Characters (Left: Wizard Beginner, Middle: Shooter Intermediate, Right: Warrior Advanced) -->
+        <div class="char-select-grid" id="char-select-grid">
+          <button class="char-card selected" data-char="magic" type="button">
+            <div class="diff-badge diff-beginner">Beginner · 新手</div>
+            <div class="char-card-body">
+              <div class="char-preview-wrap">
+                <canvas class="char-preview" data-preview="magic" width="96" height="82"></canvas>
+              </div>
+              <div class="char-card-info">
+                <div class="char-card-header">
+                  <h3>Luna</h3>
+                  <span class="weapon-tag tag-magic">法師</span>
+                </div>
+                <p class="char-desc"><b>3 Elemental Bolts</b> (🔥 Fire · ❄️ Ice · ⚡ Lightning) with homing splash!</p>
+                <div class="skill-hint"><b>[2/RMB]</b> Elem Ring · <b>[3/Q]</b> Supernova</div>
+              </div>
+            </div>
+          </button>
+
+          <button class="char-card" data-char="gun" type="button">
+            <div class="diff-badge diff-intermediate">Intermediate · 進階</div>
+            <div class="char-card-body">
+              <div class="char-preview-wrap">
+                <canvas class="char-preview" data-preview="gun" width="96" height="82"></canvas>
+              </div>
+              <div class="char-card-info">
+                <div class="char-card-header">
+                  <h3>Pip</h3>
+                  <span class="weapon-tag tag-gun">射手</span>
+                </div>
+                <p class="char-desc"><b>5 silver bullets</b> (±45°)! Hold <b>W/↑</b> to shoot straight UP!</p>
+                <div class="skill-hint"><b>[2/RMB]</b> Silver Fan · <b>[3/Q]</b> Hypernova</div>
+              </div>
+            </div>
+          </button>
+
+          <button class="char-card" data-char="blade" type="button">
+            <div class="diff-badge diff-advanced">Advanced · 高手</div>
+            <div class="char-card-body">
+              <div class="char-preview-wrap">
+                <canvas class="char-preview" data-preview="blade" width="96" height="82"></canvas>
+              </div>
+              <div class="char-card-info">
+                <div class="char-card-header">
+                  <h3>Lyra</h3>
+                  <span class="weapon-tag tag-blade">戰士</span>
+                </div>
+                <p class="char-desc">Blue-white <b>劍氣</b> waves &amp; celestial swords + <b>2-jump Air-Slice</b>!</p>
+                <div class="skill-hint"><b>[2/RMB]</b> Cyclone · <b>[3/Q]</b> Starfall</div>
+              </div>
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- First-Time Instruction Page (Shown Only on First Entry!) -->
+    <div id="instruction-overlay" class="overlay hidden">
+      <div class="modal-card instruction-card">
+        <div class="eyebrow">✦ HOW TO PLAY · 操作說明 ✦</div>
+        <h2>Welcome to Starlight Reverie</h2>
+        <p class="modal-sub">Choose whichever control style feels most comfortable—both work at the same time!</p>
+
+        <div class="instr-grid">
+          <div class="instr-box">
+            <h4>🖱️ Style A · WASD + Mouse</h4>
+            <ul>
+              <li><b>A / D</b> — Move Left / Right</li>
+              <li><b>W / Space</b> — Jump &amp; Double Jump</li>
+              <li><b>S / Shift</b> — Slide / Drop Bar</li>
+              <li><b>Left Click</b> — Normal Attack (No CD)</li>
+              <li><b>Right Click</b> — Skill (CD)</li>
+              <li><b>Q</b> — Ultimate Skill (15s CD)</li>
+            </ul>
+          </div>
+          <div class="instr-box">
+            <h4>⌨️ Style B · Arrows + 1 / 2 / 3</h4>
+            <ul>
+              <li><b>← / →</b> — Move Left / Right</li>
+              <li><b>↑ / Space</b> — Jump &amp; Double Jump</li>
+              <li><b>↓ / Shift</b> — Slide / Drop Bar</li>
+              <li><b>1</b> — Normal Attack (No CD)</li>
+              <li><b>2</b> — Skill (CD)</li>
+              <li><b>3</b> — Ultimate Skill (15s CD)</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="instr-tips">
+          <span>⚡ Dodge tracking thunderclouds (1s charge)!</span>
+          <span>🔫 Pip: Hold <b>W / ↑</b> to shoot Attack, Skill &amp; Ultimate straight UP!</span>
+          <span>⚔️ Lyra: Double-Jump + Attack for 30° Air-Slice!</span>
+        </div>
+
+        <div class="modal-actions">
+          <button id="btn-instr-go" class="primary-btn" type="button">Start Adventure ✦</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pause Overlay -->
+    <div id="pause-overlay" class="overlay hidden">
+      <div class="modal-card">
+        <h2>⏸ Paused · 夢境暫停</h2>
+        <p class="modal-sub">Take a breath among the drifting clouds · 在雲海間稍作休息</p>
+        <div class="modal-actions">
+          <button id="btn-resume" class="primary-btn" type="button">▶ Resume · 繼續遊戲</button>
+          <button id="btn-restart-cp" class="secondary-btn" type="button">🚩 Restart from Checkpoint · 從紀錄點重試</button>
+          <button id="btn-back-menu" class="ghost-btn" type="button">🗺️ Change Character / Stage · 更換角色 / 關卡</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Automatic Stage Transition Overlay (Stages 1 -> 4 clear) -->
+    <div id="transition-overlay" class="overlay hidden">
+      <div class="modal-card transition-card">
+        <div class="eyebrow" id="trans-eyebrow">✦ STAGE 1 / 5 CLEARED ✦</div>
+        <h2 id="trans-title">Dreamlight Meadow Cleared!</h2>
+        <div class="victory-rank" id="trans-rank">★★★</div>
+        <div class="result-stats" id="trans-stats"></div>
+        <div class="next-realm-box">
+          <span class="next-label">ENTERING NEXT REALM IN <b id="trans-countdown">3.5</b>s</span>
+          <div class="next-realm-name" id="trans-next-name">Stage 2 · Whispering Cloudspire</div>
+          <div class="next-realm-sub" id="trans-next-sub">雲穹秘境 · ★★☆☆☆</div>
+          <div class="trans-bar-track">
+            <div id="trans-bar-fill" class="trans-bar-fill"></div>
+          </div>
+        </div>
+        <div class="modal-actions trans-actions">
+          <button id="btn-trans-now" class="primary-btn" type="button">Continue Now ✦</button>
+          <button id="btn-trans-menu" class="ghost-btn" type="button">Back to Menu</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Game Over Overlay -->
+    <div id="gameover-overlay" class="overlay hidden">
+      <div class="modal-card">
+        <div class="eyebrow">✦ DREAM INTERRUPTED ✦</div>
+        <h2>Faded into Mist</h2>
+        <p class="modal-sub" id="gameover-msg">Your starlight dimmed, but the dream awaits your return.</p>
+        <div class="result-stats" id="gameover-stats"></div>
+        <div class="modal-actions">
+          <button id="btn-retry-cp" class="primary-btn" type="button">Retry Checkpoint ✦</button>
+          <button id="btn-retry-full" class="secondary-btn" type="button">Restart Stage</button>
+          <button id="btn-gameover-menu" class="ghost-btn" type="button">Change Character / Stage</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Grand Victory Overlay (Stage 5 Clear) -->
+    <div id="victory-overlay" class="overlay hidden">
+      <div class="modal-card victory-card">
+        <div class="eyebrow" id="victory-eyebrow">✦ ALL 5 REALMS CONQUERED ✦</div>
+        <h2 id="victory-title">Dreamland Saved!</h2>
+        <p class="modal-sub" id="victory-sub">You cleared all 5 realms from Pastel Meadow to Crimson Dream-Hell!</p>
+        <div class="victory-rank" id="victory-rank">★★★</div>
+        <div class="result-stats" id="victory-stats"></div>
+        <div class="modal-actions">
+          <button id="btn-next-stage" class="primary-btn hidden" type="button">Next Stage ✦</button>
+          <button id="btn-play-again" class="primary-btn" type="button">Replay Stage</button>
+          <button id="btn-victory-menu" class="ghost-btn" type="button">Character &amp; Map Select</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/particles.js"></script>
+  <script src="js/weather.js"></script>
+  <script src="js/combat.js"></script>
+  <script src="js/player.js"></script>
+  <script src="js/enemies.js"></script>
+  <script src="js/bosses.js"></script>
+  <script src="js/level.js"></script>
+  <script src="js/render-world.js"></script>
+  <script src="js/render-entities.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
