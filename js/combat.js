@@ -259,11 +259,13 @@ window.SR = window.SR || {};
         if (SR.aabb(pbox, player)) {
           const pushDir = ep.vx !== 0 ? Math.sign(ep.vx) : (player.cx >= ep.x ? 1 : -1);
           if (ep.pushForce) {
-            // Shiba's Bark Sound Wave pushes the player back a noticeable distance (skip push if invulnerable/God-Mode!)
+            // Sound wave attack (Woof! / Meow!) pushes the player back a noticeable distance (skip push if invulnerable/God-Mode!)
             if (player.invulnTimer <= 0 && !(game.cheats && game.cheats.godMode)) {
               player.applyKnockbackPush(pushDir, ep.pushForce, ep.pushLift || -210, game.level ? game.level.solids : null);
-              SR.particles.spawnRing(ep.x, ep.y, '#ffe58f', 54, 0.26);
-              SR.particles.spawnText(player.cx, player.y - 18, '汪！擊退！', '#ffe58f', 1.0);
+              const waveColor = ep.color || '#ffe58f';
+              const waveLabel = ep.soundLabel || 'Woof!';
+              SR.particles.spawnRing(ep.x, ep.y, waveColor, 54, 0.26);
+              SR.particles.spawnText(player.cx, player.y - 18, waveLabel, waveColor, 1.05);
             }
             const hit = player.takeDamage(1, pushDir, game, true); // preserve strong bark push!
             if (hit || (game.cheats && game.cheats.godMode)) {

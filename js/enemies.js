@@ -445,6 +445,7 @@ window.SR = window.SR || {};
           const spd = 415 * this.spdScale;
           game.enemyProjectiles.push({
             kind: 'bark_wave',
+            soundLabel: 'Woof!',
             x: this.cx + this.facing * 20,
             y: this.cy - 6,
             vx: Math.cos(ang) * spd,
@@ -458,7 +459,7 @@ window.SR = window.SR || {};
           });
           if (SR.audio.bark) SR.audio.bark();
           SR.particles.spawnRing(this.cx + this.facing * 18, this.cy - 6, '#ffe58f', 42, 0.25);
-          SR.particles.spawnText(this.cx + this.facing * 16, this.y - 20, '汪！！', '#ffe894', 1.15);
+          SR.particles.spawnText(this.cx + this.facing * 16, this.y - 20, 'Woof!', '#ffe894', 1.15);
           this.state = 'patrol';
           this.barkCd = 1.45 / this.spdScale;
         }
@@ -626,6 +627,7 @@ window.SR = window.SR || {};
           const spd = 400 * this.spdScale;
           game.enemyProjectiles.push({
             kind: 'bark_wave',
+            soundLabel: 'Woof!',
             x: this.cx + this.facing * 20,
             y: this.cy - 6,
             vx: Math.cos(ang) * spd,
@@ -639,7 +641,7 @@ window.SR = window.SR || {};
           });
           if (SR.audio.bark) SR.audio.bark();
           SR.particles.spawnRing(this.cx + this.facing * 18, this.cy - 6, '#ffe58f', 40, 0.25);
-          SR.particles.spawnText(this.cx + this.facing * 16, this.y - 20, '汪！！', '#ffe894', 1.15);
+          SR.particles.spawnText(this.cx + this.facing * 16, this.y - 20, 'Woof!', '#ffe894', 1.15);
           this.state = 'patrol';
           this.barkCd = 2.1 / this.spdScale;
         }
@@ -700,9 +702,10 @@ window.SR = window.SR || {};
       this.moveGround(dt, level);
     },
 
-    // 小頭目 #4: 亂丟貓咪 (UPGRADED — Faster, More Frequent, 4–5 Items per Throw!)
+    // 小頭目 #4: 亂丟貓咪 (UPGRADED — Faster, More Frequent, 4–5 Items + Meow! Sound Wave!)
     cat_thrower(dt, player, dx, dy, dist, level, game) {
       if (this.dashCd > 0) this.dashCd -= dt;
+      if (this.barkCd > 0) this.barkCd -= dt;
       this.stateTimer -= dt;
 
       if (this.state === 'patrol') {
@@ -720,6 +723,37 @@ window.SR = window.SR || {};
           this.vx = 0;
           this.heldItem = CAT_JUNK_ITEMS[Math.floor(Math.random() * CAT_JUNK_ITEMS.length)];
           SR.particles.spawnText(this.cx, this.y - 18, '喵！全丟出去！', '#ffbae0', 0.94);
+        } else if (this.barkCd <= 0 && dist < 500 && Math.abs(dy) < 190) {
+          this.state = 'meow_windup';
+          this.stateTimer = 0.28;
+          this.vx = 0;
+          this.facing = dx >= 0 ? 1 : -1;
+        }
+      } else if (this.state === 'meow_windup') {
+        this.vx = 0;
+        this.facing = dx >= 0 ? 1 : -1;
+        if (this.stateTimer <= 0) {
+          const ang = Math.atan2(player.cy - this.cy, player.cx - this.cx);
+          const spd = 405 * this.spdScale;
+          game.enemyProjectiles.push({
+            kind: 'bark_wave',
+            soundLabel: 'Meow!',
+            x: this.cx + this.facing * 20,
+            y: this.cy - 6,
+            vx: Math.cos(ang) * spd,
+            vy: Math.sin(ang) * spd,
+            r: 17,
+            life: 1.45,
+            color: '#ff9fd6',
+            pushForce: 520,
+            pushLift: -200,
+            deflectable: true
+          });
+          if (SR.audio.meow) SR.audio.meow(); else if (SR.audio.bark) SR.audio.bark();
+          SR.particles.spawnRing(this.cx + this.facing * 18, this.cy - 6, '#ff9fd6', 40, 0.25);
+          SR.particles.spawnText(this.cx + this.facing * 16, this.y - 20, 'Meow!', '#ffbae0', 1.15);
+          this.state = 'patrol';
+          this.barkCd = 2.3 / this.spdScale;
         }
       } else if (this.state === 'grab_windup') {
         this.facing = dx >= 0 ? 1 : -1;

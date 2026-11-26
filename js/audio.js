@@ -243,6 +243,13 @@ window.SR = window.SR || {};
       this.playNoise(0.08, 0.11, 1400);
     }
 
+    meow() {
+      if (!this.canPlaySfx('meow', 120)) return;
+      this.init();
+      this.playTone(680, 0.11, 'triangle', 0.14, 960);
+      this.playTone(940, 0.16, 'sine', 0.13, 560, 0.08);
+    }
+
     wokSizzle() {
       if (!this.canPlaySfx('wok', 140)) return;
       this.init();

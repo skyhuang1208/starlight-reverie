@@ -1523,16 +1523,28 @@ window.SR = window.SR || {};
       } else if (p.kind === 'shuttlecock' || p.kind === 'tennis' || p.kind === 'basketball' || p.kind === 'sky_sport') {
         drawSportBall(ctx, p.kind === 'sky_sport' ? (p.sportBall || 'basketball') : p.kind, p, time);
       } else if (p.kind === 'bark_wave') {
-        // Shiba's Sonic Bark Sound Wave (Triple expanding golden sound arcs!)
+        // Sonic Bark / Meow Sound Wave (Triple expanding sound arcs + upright label)
+        const waveColor = p.color || '#ffe58f';
+        ctx.save();
         ctx.rotate(Math.atan2(p.vy, p.vx));
         [0, -9, -18].forEach((ox, idx) => {
-          ctx.strokeStyle = idx === 0 ? '#ffffff' : '#ffe58f';
+          ctx.strokeStyle = idx === 0 ? '#ffffff' : waveColor;
           ctx.lineWidth = 4 - idx * 0.8;
           ctx.lineCap = 'round';
           ctx.beginPath();
           ctx.arc(ox, 0, p.r * (1.0 - idx * 0.2), -0.95, 0.95);
           ctx.stroke();
         });
+        ctx.restore();
+        ctx.font = '800 12px "Quicksand", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.lineWidth = 3.2;
+        ctx.strokeStyle = 'rgba(28, 16, 48, 0.85)';
+        const soundText = p.soundLabel || 'Woof!';
+        ctx.strokeText(soundText, 0, -p.r - 6);
+        ctx.fillStyle = waveColor;
+        ctx.fillText(soundText, 0, -p.r - 6);
       } else if (p.kind === 'dumbbell') {
         // Mika's Spinning Heavy Ballistic Dumbbell!
         ctx.rotate(time * 16);
