@@ -25,6 +25,10 @@ window.SR = window.SR || {};
       this.nameModalOpen = false;
       this.nameModalCanCancel = false;
       this.leaderboardModalOpen = false;
+      this.feedbackModalOpen = false;
+      this.feedbackCategory = 'idea';
+      this.feedbackRating = 0;
+      this.feedbackSubmitting = false;
       this.activeLeaderboardTab = 'stage_1';
       this.activeLeaderboardChar = 'all';
       this.embedPanels = {
@@ -233,6 +237,109 @@ window.SR = window.SR || {};
       }
     }
 
+    openFeedbackModal() {
+      if (!this.el || !this.el.feedbackOverlay) return;
+      this.feedbackModalOpen = true;
+      this.feedbackSubmitting = false;
+      if (this.el.feedbackMetaSub) {
+        this.el.feedbackMetaSub.textContent = `${SR.GAME_VERSION || 'v1.4.0'} · ${this.playerName || 'Dreamer'}`;
+      }
+      if (this.el.feedbackStatus) {
+        this.el.feedbackStatus.classList.add('hidden');
+        this.el.feedbackStatus.textContent = '';
+      }
+      if (this.el.btnFeedbackSubmit) {
+        this.el.btnFeedbackSubmit.disabled = false;
+        this.el.btnFeedbackSubmit.textContent = 'Send Feedback · 送出回饋 ✦';
+      }
+      this.setFeedbackCategory(this.feedbackCategory || 'idea');
+      this.setFeedbackRating(this.feedbackRating || 0);
+      this.el.feedbackOverlay.classList.remove('hidden');
+      setTimeout(() => {
+        if (this.el.feedbackMessage) this.el.feedbackMessage.focus();
+      }, 30);
+    }
+
+    closeFeedbackModal() {
+      this.feedbackModalOpen = false;
+      if (this.el && this.el.feedbackOverlay) {
+        this.el.feedbackOverlay.classList.add('hidden');
+      }
+      if (this.el && this.el.feedbackMessage) this.el.feedbackMessage.blur();
+    }
+
+    setFeedbackCategory(cat) {
+      this.feedbackCategory = cat || 'idea';
+      document.querySelectorAll('#fb-cat-row .fb-cat-btn').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.fbCat === this.feedbackCategory);
+      });
+    }
+
+    setFeedbackRating(rating) {
+      this.feedbackRating = rating;
+      document.querySelectorAll('#fb-rating-row .fb-star-btn').forEach((btn) => {
+        const val = parseInt(btn.dataset.fbStar, 10) || 0;
+        btn.classList.toggle('active', val <= this.feedbackRating && this.feedbackRating > 0);
+      });
+    }
+
+    showFeedbackStatus(msg, isError = false) {
+      if (!this.el || !this.el.feedbackStatus) return;
+      this.el.feedbackStatus.textContent = msg;
+      this.el.feedbackStatus.className = `fb-status ${isError ? 'err' : 'ok'}`;
+    }
+
+    async submitFeedbackForm() {
+      if (this.feedbackSubmitting || !SR.leaderboard || !this.el || !this.el.feedbackMessage) return;
+      const msg = this.el.feedbackMessage.value.trim();
+      if (msg.length < 3) {
+        this.showFeedbackStatus('Please write at least 3 characters · 請至少輸入 3 個字元', true);
+        this.el.feedbackMessage.focus();
+        return;
+      }
+
+      this.feedbackSubmitting = true;
+      if (this.el.btnFeedbackSubmit) {
+        this.el.btnFeedbackSubmit.disabled = true;
+        this.el.btnFeedbackSubmit.textContent = 'Sending... · 傳送中...';
+      }
+
+      const stage = this.state === 'playing' || this.state === 'paused' || this.state === 'gameover' || this.state === 'transition' || this.state === 'victory'
+        ? (this.level && this.level.meta ? this.level.meta.index + 1 : this.selectedMapIndex + 1)
+        : (this.selectedMapIndex + 1);
+
+      const res = await SR.leaderboard.submitFeedback({
+        name: this.playerName || 'Dreamer',
+        category: this.feedbackCategory || 'idea',
+        rating: this.feedbackRating || null,
+        message: msg,
+        stage,
+        charId: this.selectedChar
+      });
+
+      this.feedbackSubmitting = false;
+      if (this.el.btnFeedbackSubmit) {
+        this.el.btnFeedbackSubmit.disabled = false;
+        this.el.btnFeedbackSubmit.textContent = 'Send Feedback · 送出回饋 ✦';
+      }
+
+      if (res && res.ok) {
+        this.el.feedbackMessage.value = '';
+        if (this.el.feedbackCharCount) this.el.feedbackCharCount.textContent = '0 / 500';
+        this.setFeedbackRating(0);
+        this.showFeedbackStatus(
+          res.mode === 'cloud'
+            ? '✦ Thank you! Your feedback has been sent! · 感謝您的寶貴意見！'
+            : '💾 Saved locally (offline mode) · 已暫存於本機，感謝回饋！',
+          false
+        );
+      } else if (res && res.error === 'rate_limited') {
+        this.showFeedbackStatus('Too many submissions right now — please try again later · 請稍後再試', true);
+      } else {
+        this.showFeedbackStatus('Could not send feedback — please check your message · 傳送失敗，請檢查內容後重試', true);
+      }
+    }
+
     clearBossVictoryTimeout() {
       if (this.bossVictoryTimeout) {
         clearTimeout(this.bossVictoryTimeout);
@@ -393,6 +500,18 @@ window.SR = window.SR || {};
         lbModeBadge: $('lb-mode-badge'),
         btnLbRefresh: $('btn-lb-refresh'),
         btnLbClose: $('btn-lb-close'),
+        btnOpenFeedback: $('btn-open-feedback'),
+        btnPauseFeedback: $('btn-pause-feedback'),
+        feedbackOverlay: $('feedback-overlay'),
+        feedbackForm: $('feedback-form'),
+        feedbackMessage: $('feedback-message'),
+        feedbackCharCount: $('feedback-char-count'),
+        feedbackStatus: $('feedback-status'),
+        feedbackMetaSub: $('feedback-meta-sub'),
+        btnFeedbackSubmit: $('btn-feedback-submit'),
+        btnFeedbackClose: $('btn-feedback-close'),
+        menuVersionBadge: $('menu-version-badge'),
+        pauseVersionTag: $('pause-version-tag'),
         menuPlayerName: $('menu-player-name'),
         hudPlayerName: $('hud-player-name'),
         selectedHeroPill: $('selected-hero-pill'),
@@ -498,6 +617,51 @@ window.SR = window.SR || {};
       if (this.el.leaderboardOverlay) {
         this.el.leaderboardOverlay.addEventListener('click', (e) => {
           if (e.target === this.el.leaderboardOverlay) this.closeLeaderboardModal();
+        });
+      }
+
+      // Version Display & Player Feedback Modal Controls
+      const ver = SR.GAME_VERSION || 'v1.4.0';
+      if (this.el.menuVersionBadge) this.el.menuVersionBadge.textContent = ver;
+      if (this.el.pauseVersionTag) this.el.pauseVersionTag.textContent = `Starlight Reverie · ${ver}`;
+
+      if (this.el.btnOpenFeedback) {
+        this.el.btnOpenFeedback.addEventListener('click', () => this.openFeedbackModal());
+      }
+      if (this.el.btnPauseFeedback) {
+        this.el.btnPauseFeedback.addEventListener('click', () => this.openFeedbackModal());
+      }
+      if (this.el.btnFeedbackClose) {
+        this.el.btnFeedbackClose.addEventListener('click', () => this.closeFeedbackModal());
+      }
+      if (this.el.feedbackOverlay) {
+        this.el.feedbackOverlay.addEventListener('click', (e) => {
+          if (e.target === this.el.feedbackOverlay) this.closeFeedbackModal();
+        });
+      }
+      document.querySelectorAll('#fb-cat-row .fb-cat-btn').forEach((btn) => {
+        btn.addEventListener('click', () => this.setFeedbackCategory(btn.dataset.fbCat));
+      });
+      document.querySelectorAll('#fb-rating-row .fb-star-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const val = parseInt(btn.dataset.fbStar, 10) || 0;
+          this.setFeedbackRating(this.feedbackRating === val ? 0 : val);
+        });
+      });
+      if (this.el.feedbackMessage) {
+        this.el.feedbackMessage.addEventListener('input', () => {
+          if (this.el.feedbackCharCount) {
+            this.el.feedbackCharCount.textContent = `${this.el.feedbackMessage.value.length} / 500`;
+          }
+          if (this.el.feedbackStatus && this.el.feedbackStatus.classList.contains('err')) {
+            this.el.feedbackStatus.classList.add('hidden');
+          }
+        });
+      }
+      if (this.el.feedbackForm) {
+        this.el.feedbackForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          this.submitFeedbackForm();
         });
       }
 
@@ -686,6 +850,13 @@ window.SR = window.SR || {};
           if (code === 'Escape') {
             e.preventDefault();
             this.closeLeaderboardModal();
+          }
+          return;
+        }
+        if (this.feedbackModalOpen) {
+          if (code === 'Escape') {
+            e.preventDefault();
+            this.closeFeedbackModal();
           }
           return;
         }

@@ -2,6 +2,7 @@
 window.SR = window.SR || {};
 
 (function (SR) {
+  const GAME_VERSION = 'v1.4.0';
   const VIEW_W = 1200;
   const VIEW_H = 680;
 
@@ -177,6 +178,7 @@ window.SR = window.SR || {};
   // (e.g. 'https://starlight-reverie-lb.<your-subdomain>.workers.dev') to enable the Global Leaderboard!
   const LEADERBOARD_API_URL = 'https://starlight-reverie-lb.muskyhuang.workers.dev';
 
+  SR.GAME_VERSION = GAME_VERSION;
   SR.VIEW_W = VIEW_W;
   SR.VIEW_H = VIEW_H;
   SR.LEADERBOARD_API_URL = LEADERBOARD_API_URL;

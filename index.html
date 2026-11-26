@@ -127,8 +127,15 @@
                 <span>🏆</span>
                 <span>Leaderboard · 排行榜</span>
               </button>
+              <button id="btn-open-feedback" class="feedback-trigger-pill" type="button" title="Send Feedback · 意見回饋">
+                <span>💬</span>
+                <span>Feedback · 回饋</span>
+              </button>
             </div>
-            <h1 class="game-title">Starlight Reverie · 夢光幻境</h1>
+            <div class="game-title-row">
+              <h1 class="game-title">Starlight Reverie · 夢光幻境</h1>
+              <span id="menu-version-badge" class="version-badge">v1.4.0</span>
+            </div>
           </div>
 
           <!-- 金手指 區 (Golden Finger Cheats) -->
@@ -321,6 +328,50 @@
       </div>
     </div>
 
+    <!-- Player Feedback Overlay -->
+    <div id="feedback-overlay" class="overlay name-overlay hidden">
+      <div class="modal-card feedback-modal-card">
+        <div class="eyebrow">✦ PLAYER FEEDBACK · 玩家意見回饋 ✦</div>
+        <h2>Send Feedback · 意見回饋</h2>
+        <div class="fb-sub" id="feedback-meta-sub">v1.4.0 · Dreamer</div>
+        <form id="feedback-form" class="fb-form" autocomplete="off">
+          <div class="fb-cat-row" id="fb-cat-row" role="group" aria-label="Feedback Category">
+            <button type="button" class="fb-cat-btn" data-fb-cat="bug">🐛 Bug</button>
+            <button type="button" class="fb-cat-btn" data-fb-cat="balance">⚖️ Balance</button>
+            <button type="button" class="fb-cat-btn active" data-fb-cat="idea">💡 Idea</button>
+            <button type="button" class="fb-cat-btn" data-fb-cat="praise">💖 Like</button>
+          </div>
+          <div class="fb-rating-row" id="fb-rating-row">
+            <span>Rating (optional) · 評分</span>
+            <div class="fb-stars">
+              <button type="button" class="fb-star-btn" data-fb-star="1" aria-label="1 star">★</button>
+              <button type="button" class="fb-star-btn" data-fb-star="2" aria-label="2 stars">★</button>
+              <button type="button" class="fb-star-btn" data-fb-star="3" aria-label="3 stars">★</button>
+              <button type="button" class="fb-star-btn" data-fb-star="4" aria-label="4 stars">★</button>
+              <button type="button" class="fb-star-btn" data-fb-star="5" aria-label="5 stars">★</button>
+            </div>
+          </div>
+          <textarea
+            id="feedback-message"
+            class="fb-textarea"
+            rows="4"
+            maxlength="500"
+            placeholder="Share bugs, balance thoughts, or new ideas! · 歡迎回報 Bug、平衡建議或新點子..."
+            aria-label="Feedback message"
+          ></textarea>
+          <div class="fb-meta-row">
+            <span class="fb-hint">Sent directly to developer · 直接傳送給開發者</span>
+            <span id="feedback-char-count">0 / 500</span>
+          </div>
+          <div id="feedback-status" class="fb-status hidden"></div>
+          <div class="modal-actions">
+            <button id="btn-feedback-submit" class="primary-btn" type="submit">Send Feedback · 送出回饋 ✦</button>
+            <button id="btn-feedback-close" class="ghost-btn" type="button">Close · 關閉</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- First-Time Instruction Page (Shown Only on First Entry!) -->
     <div id="instruction-overlay" class="overlay hidden">
       <div class="modal-card instruction-card">
@@ -371,8 +422,10 @@
         <div class="modal-actions">
           <button id="btn-resume" class="primary-btn" type="button">▶ Resume · 繼續遊戲</button>
           <button id="btn-restart-cp" class="secondary-btn" type="button">🚩 Restart from Checkpoint · 從紀錄點重試</button>
+          <button id="btn-pause-feedback" class="ghost-btn" type="button">💬 Send Feedback · 意見回饋</button>
           <button id="btn-back-menu" class="ghost-btn" type="button">🗺️ Change Character / Stage · 更換角色 / 關卡</button>
         </div>
+        <div id="pause-version-tag" class="version-footer-tag">Starlight Reverie · v1.4.0</div>
       </div>
     </div>
 

@@ -6,9 +6,13 @@
 
 const MAX_RECORDS = 100;
 const TOKEN_TTL_MS = 1000 * 60 * 90; // 90 minutes max continuous session
-const MAX_BODY_BYTES = 2048;
+const MAX_BODY_BYTES = 4096;
 const RATE_LIMIT_MAX = 30;
 const RATE_LIMIT_WINDOW_SEC = 600; // 30 score updates per 10 minutes per IP
+const MAX_FEEDBACK_ITEMS = 200;
+const FEEDBACK_RATE_MAX = 5;
+const FEEDBACK_RATE_WINDOW_SEC = 3600; // 5 feedback submissions per hour per IP
+const VALID_FEEDBACK_CATEGORIES = new Set(['bug', 'balance', 'idea', 'praise', 'other']);
 const VALID_CHARS = new Set(['magic', 'gun', 'blade']);
 const VALID_BOARDS = new Set(['campaign', 'stage_1', 'stage_2', 'stage_3', 'stage_4', 'stage_5']);
 
@@ -119,6 +123,14 @@ function sanitizeName(raw) {
     .trim()
     .replace(/\s+/g, ' ')
     .slice(0, 18);
+}
+
+function sanitizeMessage(raw) {
+  return String(raw || '')
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f<>]/g, '')
+    .replace(/\r\n?/g, '\n')
+    .trim()
+    .slice(0, 500);
 }
 
 function normNameKey(name) {
@@ -308,6 +320,83 @@ export default {
         await env.LEADERBOARD_KV.put(`scores:${b}`, '[]');
       }
       return json({ ok: true, cleared: boardsToClear }, 200, headers);
+    }
+
+    // 5) POST /api/feedback — Public player feedback endpoint (per-IP hourly rate-limited)
+    if (request.method === 'POST' && url.pathname === '/api/feedback') {
+      const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+      const fbRateKey = `rl:fb:${ip}`;
+      const hits = parseInt((await env.LEADERBOARD_KV.get(fbRateKey)) || '0', 10);
+      if (hits >= FEEDBACK_RATE_MAX) {
+        return json({ error: 'rate_limited' }, 429, headers);
+      }
+
+      const body = await readJsonBody(request);
+      if (!body) return json({ error: 'invalid_body' }, 400, headers);
+
+      const message = sanitizeMessage(body.message);
+      if (message.length < 3) {
+        return json({ error: 'message_too_short' }, 400, headers);
+      }
+
+      await env.LEADERBOARD_KV.put(fbRateKey, String(hits + 1), { expirationTtl: FEEDBACK_RATE_WINDOW_SEC });
+
+      const rawRating = Number(body.rating);
+      const rawStage = Number(body.stage);
+      const entry = {
+        id: crypto.randomUUID(),
+        ts: Date.now(),
+        name: sanitizeName(body.name) || 'Dreamer',
+        category: VALID_FEEDBACK_CATEGORIES.has(body.category) ? body.category : 'other',
+        rating: (Number.isInteger(rawRating) && rawRating >= 1 && rawRating <= 5) ? rawRating : null,
+        message,
+        version: sanitizeName(body.version || '').slice(0, 24) || 'unknown',
+        stage: (Number.isInteger(rawStage) && rawStage >= 1 && rawStage <= 5) ? rawStage : null,
+        charId: VALID_CHARS.has(body.charId) ? body.charId : null
+      };
+
+      const existing = (await env.LEADERBOARD_KV.get('feedback:list', { type: 'json' })) || [];
+      const updated = [entry].concat(Array.isArray(existing) ? existing : []).slice(0, MAX_FEEDBACK_ITEMS);
+      await env.LEADERBOARD_KV.put('feedback:list', JSON.stringify(updated));
+      return json({ ok: true, id: entry.id }, 200, headers);
+    }
+
+    // 6) GET /api/admin/feedback — Owner-only view of stored feedback (?format=text for readable summary)
+    if (request.method === 'GET' && url.pathname === '/api/admin/feedback') {
+      if (!env.ADMIN_RESET_KEY || env.ADMIN_RESET_KEY.length < 12) {
+        return json({ error: 'admin_reset_not_configured' }, 503, headers);
+      }
+      const providedKey = request.headers.get('X-Admin-Key') || '';
+      if (!timingSafeEqual(providedKey, env.ADMIN_RESET_KEY)) {
+        return json({ error: 'unauthorized' }, 401, headers);
+      }
+      const entries = (await env.LEADERBOARD_KV.get('feedback:list', { type: 'json' })) || [];
+      if (url.searchParams.get('format') === 'text') {
+        const lines = entries.map((e) => {
+          const dt = new Date(e.ts || 0).toISOString();
+          const stars = e.rating ? ` [${e.rating}★]` : '';
+          const stageTxt = e.stage ? ` [S${e.stage}]` : '';
+          return `[${dt}] [${e.version || '?'}] [${e.category || 'other'}]${stars}${stageTxt} ${e.name || 'Dreamer'}: ${e.message}`;
+        });
+        return new Response(lines.length ? lines.join('\n') : '(No feedback yet)', {
+          status: 200,
+          headers: { 'Content-Type': 'text/plain; charset=utf-8', ...headers }
+        });
+      }
+      return json({ ok: true, count: entries.length, entries }, 200, headers);
+    }
+
+    // 7) POST /api/admin/feedback/clear — Owner-only clear all stored feedback
+    if (request.method === 'POST' && url.pathname === '/api/admin/feedback/clear') {
+      if (!env.ADMIN_RESET_KEY || env.ADMIN_RESET_KEY.length < 12) {
+        return json({ error: 'admin_reset_not_configured' }, 503, headers);
+      }
+      const providedKey = request.headers.get('X-Admin-Key') || '';
+      if (!timingSafeEqual(providedKey, env.ADMIN_RESET_KEY)) {
+        return json({ error: 'unauthorized' }, 401, headers);
+      }
+      await env.LEADERBOARD_KV.put('feedback:list', '[]');
+      return json({ ok: true, cleared: true }, 200, headers);
     }
 
     return json({ error: 'not_found' }, 404, headers);

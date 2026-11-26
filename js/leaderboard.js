@@ -7,6 +7,7 @@ window.SR = window.SR || {};
 
 (function (SR) {
   const LOCAL_STORAGE_KEY = 'sr_leaderboard_v3';
+  const LOCAL_FEEDBACK_KEY = 'sr_feedback_local_v1';
   const MAX_RECORDS = 100;
   const VALID_BOARDS = ['campaign', 'stage_1', 'stage_2', 'stage_3', 'stage_4', 'stage_5'];
   const VALID_CHAR_FILTERS = ['all', 'magic', 'gun', 'blade'];
@@ -275,6 +276,58 @@ window.SR = window.SR || {};
         rank: localRank || null,
         entries: mergedLocal
       };
+    }
+
+    async submitFeedback(payload = {}) {
+      const message = String(payload.message || '')
+        .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f<>]/g, '')
+        .replace(/\r\n?/g, '\n')
+        .trim()
+        .slice(0, 500);
+
+      if (message.length < 3) {
+        return { ok: false, error: 'message_too_short' };
+      }
+
+      const rawRating = Number(payload.rating);
+      const rawStage = Number(payload.stage);
+      const body = {
+        name: this.sanitizeName(payload.name),
+        category: payload.category || 'idea',
+        rating: (Number.isInteger(rawRating) && rawRating >= 1 && rawRating <= 5) ? rawRating : null,
+        message,
+        version: SR.GAME_VERSION || 'v1.4.0',
+        stage: (Number.isInteger(rawStage) && rawStage >= 1 && rawStage <= 5) ? rawStage : null,
+        charId: HERO_DISPLAY[payload.charId] ? payload.charId : null
+      };
+
+      if (this.isCloudEnabled()) {
+        try {
+          const res = await fetch(`${this.getApiBase()}/api/feedback`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          });
+          const data = await res.json().catch(() => null);
+          if (res.ok && data && data.ok) {
+            return { ok: true, mode: 'cloud', id: data.id || null };
+          }
+          if (res.status === 429) {
+            return { ok: false, error: 'rate_limited' };
+          }
+          if (res.status >= 400 && res.status < 500) {
+            return { ok: false, error: (data && data.error) || 'invalid_request' };
+          }
+        } catch (_) {}
+      }
+
+      try {
+        const raw = window.localStorage.getItem(LOCAL_FEEDBACK_KEY);
+        const list = raw ? JSON.parse(raw) : [];
+        const updated = [{ ...body, ts: Date.now() }].concat(Array.isArray(list) ? list : []).slice(0, 50);
+        window.localStorage.setItem(LOCAL_FEEDBACK_KEY, JSON.stringify(updated));
+      } catch (_) {}
+      return { ok: true, mode: 'local' };
     }
 
     formatTime(sec) {
