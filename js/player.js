@@ -866,7 +866,7 @@ window.SR = window.SR || {};
       }
     }
 
-    // [3 / Q] Ultimate Skill (15s CD)
+    // [3 / Q] Ultimate Skill (30s CD)
     performUltimate(game) {
       this.ultimateTimer = this.def.ultimateCooldown;
       this.ultimateFlash = 0.75;

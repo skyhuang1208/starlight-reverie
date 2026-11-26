@@ -355,6 +355,7 @@ window.SR = window.SR || {};
             this.stateTimer = 0.75;
             this.targetX = (this.arena.minX + this.arena.maxX) * 0.5 - this.w * 0.5;
             this.targetY = 265;
+            SR.particles.spawnText(this.cx, this.y - 24, '召喚!', '#ffe894', 1.15);
           }
         }
       } else if (this.state === 'fan_prep') {
@@ -693,27 +694,27 @@ window.SR = window.SR || {};
 
   const HUMAN_SUMMON_CONFIG = {
     human_grandma: {
-      callout: '召喚外送小隊與街坊支援！！',
+      callout: '召喚!',
       soldiers: ['slime', 'knight', 'wisp'],
       elites: ['delivery_scooter', 'corgi_skater']
     },
     human_athlete: {
-      callout: '體育校隊＋滑板柯基集合！！',
+      callout: '召喚!',
       soldiers: ['knight', 'shadow_dasher', 'bomber'],
       elites: ['corgi_skater', 'shiba_samurai']
     },
     human_trader: {
-      callout: '主力部隊＋貓咪操盤手進場！！',
+      callout: '召喚!',
       soldiers: ['prism_turret', 'shadow_dasher', 'wisp'],
       elites: ['cat_thrower', 'delivery_scooter']
     },
     human_engineer: {
-      callout: '外包工程師＋柴犬架構師支援！！',
+      callout: '召喚!',
       soldiers: ['prism_turret', 'knight', 'bomber'],
       elites: ['shiba_samurai', 'cat_thrower']
     },
     human_jk: {
-      callout: '社團應援團＋最強柴柴出動！！',
+      callout: '召喚!',
       soldiers: ['shadow_dasher', 'knight', 'wisp'],
       elites: ['shiba_samurai', 'cat_thrower', 'corgi_skater', 'delivery_scooter']
     }
