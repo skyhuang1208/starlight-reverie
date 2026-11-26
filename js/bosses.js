@@ -147,8 +147,8 @@ window.SR = window.SR || {};
       this.animTime += dt;
       if (this.hitFlash > 0) this.hitFlash -= dt;
       this.stateTimer -= dt;
-      const tierMult = this.variant === 'pyro' ? 1.28 : (this.variant === 'frost' ? 1.16 : 1.06);
-      const speedMult = (this.phase === 2 ? 1.25 : 1.0) * tierMult;
+      const tierMult = this.variant === 'pyro' ? 1.16 : (this.variant === 'frost' ? 1.06 : 0.96);
+      const speedMult = (this.phase === 2 ? 1.16 : 1.0) * tierMult;
       const projCol = this.variant === 'pyro' ? '#ff8c66' : (this.variant === 'frost' ? '#a6f4ff' : '#9bf5e4');
 
       if (this.state === 'idle') {
@@ -158,13 +158,13 @@ window.SR = window.SR || {};
           const patterns = ['orbit_volley', 'dash_windup', 'stomp_windup'];
           this.state = patterns[this.patternIndex % patterns.length];
           this.patternIndex++;
-          if (this.state === 'stomp_windup') this.stateTimer = 0.48 / speedMult;
+          if (this.state === 'stomp_windup') this.stateTimer = 0.52 / speedMult;
           if (this.state === 'orbit_volley') {
             this.stateTimer = 1.45 / speedMult;
-            this.shotsLeft = this.phase === 2 ? 6 : 4;
-            this.shotTick = 0.2;
+            this.shotsLeft = this.phase === 2 ? 4 : 3;
+            this.shotTick = 0.25;
           }
-          if (this.state === 'dash_windup') this.stateTimer = 0.5 / speedMult;
+          if (this.state === 'dash_windup') this.stateTimer = 0.55 / speedMult;
         }
       } else if (this.state === 'stomp_windup') {
         this.vx = 0;
@@ -181,19 +181,19 @@ window.SR = window.SR || {};
           game.addShake(5);
           SR.audio.hit(true);
           SR.particles.spawnRing(this.cx, this.y + this.h, projCol, 105, 0.35);
-          this.spawnShockwaves(game, projCol, this.phase === 2 ? 440 : 365, 16, 1.9);
+          this.spawnShockwaves(game, projCol, this.phase === 2 ? 400 : 340, 16, 1.8);
           // Multi-directional crystal/frost shards erupting upward on slam!
-          const shardCnt = this.phase === 2 ? 6 : 4;
+          const shardCnt = this.phase === 2 ? 4 : 3;
           for (let i = 0; i < shardCnt; i++) {
-            const ang = -Math.PI * 0.15 - (Math.PI * 0.7) * (i / (shardCnt - 1));
+            const ang = -Math.PI * 0.2 - (Math.PI * 0.6) * (i / Math.max(1, shardCnt - 1));
             game.enemyProjectiles.push({
               kind: 'orb', x: this.cx, y: this.y + 12,
-              vx: Math.cos(ang) * 320, vy: Math.sin(ang) * 380,
-              gravity: 560, r: 9.5, life: 2.2, color: projCol, deflectable: true
+              vx: Math.cos(ang) * 300, vy: Math.sin(ang) * 350,
+              gravity: 560, r: 9.5, life: 2.1, color: projCol, deflectable: true
             });
           }
           this.state = 'idle';
-          this.stateTimer = 0.78 / speedMult;
+          this.stateTimer = 1.05 / speedMult;
           this.vx = 0;
         }
       } else if (this.state === 'orbit_volley') {
@@ -203,22 +203,22 @@ window.SR = window.SR || {};
         this.shotTick -= dt;
         if (this.shotTick <= 0 && this.shotsLeft > 0) {
           this.shotsLeft--;
-          this.shotTick = this.phase === 2 ? 0.2 : 0.28;
+          this.shotTick = this.phase === 2 ? 0.30 : 0.38;
           const ang = Math.atan2(player.cy - this.cy, player.cx - this.cx);
-          // Multi-directional 3–5 way orb fan!
-          const fan = this.phase === 2 ? [-0.46, -0.23, 0, 0.23, 0.46] : [-0.3, 0, 0.3];
+          // Balanced 3-4 way orb fan!
+          const fan = this.phase === 2 ? [-0.42, -0.14, 0.14, 0.42] : [-0.28, 0, 0.28];
           fan.forEach((off) => {
             game.enemyProjectiles.push({
               kind: 'orb', x: this.cx + Math.cos(ang + off) * 32, y: this.cy + Math.sin(ang + off) * 32,
-              vx: Math.cos(ang + off) * 365, vy: Math.sin(ang + off) * 365,
-              r: 10, life: 2.6, color: projCol, deflectable: true
+              vx: Math.cos(ang + off) * 345, vy: Math.sin(ang + off) * 345,
+              r: 10, life: 2.5, color: projCol, deflectable: true
             });
           });
           SR.audio.shoot(false);
         }
         if (this.stateTimer <= 0) {
           this.state = 'idle';
-          this.stateTimer = 0.72 / speedMult;
+          this.stateTimer = 1.05 / speedMult;
         }
       } else if (this.state === 'dash_windup') {
         this.facing = player.cx >= this.cx ? 1 : -1;
@@ -227,19 +227,19 @@ window.SR = window.SR || {};
           // Fast Long-Range Arena Dash!
           this.state = 'dash';
           this.stateTimer = 1.05;
-          this.vx = this.facing * (this.phase === 2 ? 760 : 650);
+          this.vx = this.facing * (this.phase === 2 ? 730 : 630);
           SR.audio.slide();
         }
       } else if (this.state === 'dash') {
-        if (Math.random() < 0.28) {
+        if (Math.random() < 0.14) {
           game.enemyProjectiles.push({
             kind: 'orb', x: this.cx, y: this.cy,
-            vx: -this.facing * 120, vy: -240, gravity: 560, r: 8.5, life: 1.5, color: projCol, deflectable: true
+            vx: -this.facing * 115, vy: -230, gravity: 560, r: 8.5, life: 1.5, color: projCol, deflectable: true
           });
         }
         if (this.isAtArenaEdge(14) || this.stateTimer <= 0) {
           this.state = 'idle';
-          this.stateTimer = 0.78 / speedMult;
+          this.stateTimer = 1.05 / speedMult;
           this.vx = 0;
         }
       }
@@ -282,7 +282,7 @@ window.SR = window.SR || {};
       this.animTime += dt;
       if (this.hitFlash > 0) this.hitFlash -= dt;
       this.stateTimer -= dt;
-      const spd = (this.phase === 2 ? 1.28 : 1.0) * this.spec.spd;
+      const spd = (this.phase === 2 ? 1.18 : 1.0) * this.spec.spd;
 
       for (let i = this.meteors.length - 1; i >= 0; i--) {
         const m = this.meteors[i];
@@ -334,8 +334,8 @@ window.SR = window.SR || {};
             this.targetX = (this.arena.minX + this.arena.maxX) * 0.5 - this.w * 0.5;
             this.targetY = 260;
             this.state = 'spiral_storm';
-            this.stateTimer = this.phase === 2 ? 1.75 : 1.3;
-            this.spiralTick = 0.2;
+            this.stateTimer = this.phase === 2 ? 1.45 : 1.15;
+            this.spiralTick = 0.25;
             this.spiralAngle = 0;
           } else if (next === 'meteor_rain') {
             this.targetX = (this.arena.minX + this.arena.maxX) * 0.5 - this.w * 0.5;
@@ -343,11 +343,11 @@ window.SR = window.SR || {};
             this.state = 'meteor_rain';
             this.stateTimer = 1.55;
             this.meteors = [];
-            const cnt = this.phase === 2 ? this.spec.meteors + 2 : this.spec.meteors;
+            const cnt = this.phase === 2 ? this.spec.meteors + 1 : this.spec.meteors;
             const span = this.arena.maxX - this.arena.minX - 120;
             for (let i = 0; i < cnt; i++) {
-              const mx = this.arena.minX + 60 + (span / (cnt - 1)) * i + (Math.random() - 0.5) * 40;
-              this.meteors.push({ x: mx, warnTimer: 0.78 + i * 0.08, fired: false });
+              const mx = this.arena.minX + 60 + (span / Math.max(1, cnt - 1)) * i + (Math.random() - 0.5) * 40;
+              this.meteors.push({ x: mx, warnTimer: 0.88 + i * 0.09, fired: false });
             }
             SR.audio.bossAlert();
           } else if (next === 'summon') {
@@ -360,120 +360,127 @@ window.SR = window.SR || {};
       } else if (this.state === 'fan_prep') {
         this.facing = player.cx >= this.cx ? 1 : -1;
         if (this.stateTimer <= 0) {
-          // Wide Multi-Directional Dual-Speed Petal Fan!
-          const count = this.phase === 2 ? (this.bossKind === 'malakor' ? 11 : 9) : 7;
+          // Balanced Dual-Speed Petal Fan!
+          const count = this.phase === 2 ? (this.bossKind === 'malakor' ? 8 : 7) : 5;
           const baseAng = Math.atan2(player.cy - this.cy, player.cx - this.cx);
-          const spread = this.phase === 2 ? 1.75 : 1.35;
+          const spread = this.phase === 2 ? 1.55 : 1.20;
           for (let i = 0; i < count; i++) {
             const ang = baseAng - spread * 0.5 + (spread / (count - 1)) * i;
-            const pSpd = (i % 2 === 0 ? 375 : 300) * (this.phase === 2 ? 1.12 : 1.0);
+            const pSpd = (i % 2 === 0 ? 355 : 285) * (this.phase === 2 ? 1.08 : 1.0);
             game.enemyProjectiles.push({
               kind: 'petal', x: this.cx, y: this.cy,
               vx: Math.cos(ang) * pSpd, vy: Math.sin(ang) * pSpd,
-              r: 10, life: 3.1, color: i % 2 === 0 ? this.spec.p1 : this.spec.p2, deflectable: true
+              r: 10, life: 2.9, color: i % 2 === 0 ? this.spec.p1 : this.spec.p2, deflectable: true
             });
           }
           SR.audio.castMagic();
           this.state = 'float_idle';
-          this.stateTimer = 0.78 / spd;
+          this.stateTimer = 1.05 / spd;
         }
       } else if (this.state === 'spiral_storm') {
         this.x += (this.targetX - this.x) * Math.min(1, dt * 4);
         this.y += (this.targetY - this.y) * Math.min(1, dt * 4);
         this.spiralTick -= dt;
         if (this.spiralTick <= 0) {
-          this.spiralTick = this.phase === 2 ? 0.21 : 0.29;
-          const arms = this.bossKind === 'malakor' ? 8 : 6;
+          this.spiralTick = this.phase === 2 ? 0.33 : 0.42;
+          const arms = this.bossKind === 'malakor' ? 6 : 4;
           this.spiralAngle += 0.36;
           for (let i = 0; i < arms; i++) {
             const ang = this.spiralAngle + (Math.PI * 2 * i) / arms;
             game.enemyProjectiles.push({
               kind: 'orb', x: this.cx, y: this.cy,
-              vx: Math.cos(ang) * 295, vy: Math.sin(ang) * 295,
-              r: 9, life: 2.9, color: i % 2 === 0 ? this.spec.p1 : this.spec.p2, deflectable: true
+              vx: Math.cos(ang) * 260, vy: Math.sin(ang) * 260,
+              r: 9, life: 2.8, color: i % 2 === 0 ? this.spec.p1 : this.spec.p2, deflectable: true
             });
           }
           SR.audio.shoot(false);
         }
         if (this.stateTimer <= 0) {
           this.state = 'float_idle';
-          this.stateTimer = 0.76 / spd;
+          this.stateTimer = 1.05 / spd;
         }
       } else if (this.state === 'sweep_prep') {
         if (this.stateTimer <= 0) {
-          // Ultra-Fast Long-Range Full-Arena Sweep!
+          // Fast Long-Range Full-Arena Sweep!
           this.state = 'sweep';
           this.stateTimer = 1.35;
-          this.vx = this.facing * (this.phase === 2 ? 860 : 750);
-          this.trailTick = 0.1;
+          this.vx = this.facing * (this.phase === 2 ? 820 : 720);
+          this.trailTick = 0.16;
+          this.sweepOrbParity = 0;
           SR.audio.slide();
         }
       } else if (this.state === 'sweep') {
         this.x += this.vx * dt;
         this.trailTick -= dt;
         if (this.trailTick <= 0) {
-          this.trailTick = this.phase === 2 ? 0.11 : 0.16;
-          [-1, 1].forEach((dirY) => {
-            game.enemyProjectiles.push({
-              kind: 'orb', x: this.cx, y: this.cy,
-              vx: -this.facing * 80, vy: dirY * 185, r: 8.5, life: 1.6, color: this.spec.p1, deflectable: true
-            });
+          this.trailTick = this.phase === 2 ? 0.20 : 0.26;
+          const dirY = (this.sweepOrbParity++ % 2 === 0) ? -1 : 1;
+          game.enemyProjectiles.push({
+            kind: 'orb', x: this.cx, y: this.cy,
+            vx: -this.facing * 80, vy: dirY * 185, r: 8.5, life: 1.6, color: this.spec.p1, deflectable: true
           });
         }
         if (this.isAtArenaEdge(24) || this.stateTimer <= 0) {
-          this.spawnShockwaves(game, this.spec.p1, 410, 16, 1.8, 558);
+          this.spawnShockwaves(game, this.spec.p1, 385, 16, 1.8, 558);
           this.vx = 0;
           this.targetX = this.x;
           this.targetY = 275;
           this.state = 'float_idle';
-          this.stateTimer = 0.75 / spd;
+          this.stateTimer = 1.05 / spd;
         }
       } else if (this.state === 'meteor_rain') {
         this.x += (this.targetX - this.x) * Math.min(1, dt * 4);
         this.y += (this.targetY - this.y) * Math.min(1, dt * 4);
         if (this.stateTimer <= 0) {
           this.state = 'float_idle';
-          this.stateTimer = 0.78;
+          this.stateTimer = 1.08 / spd;
         }
       } else if (this.state === 'summon') {
         this.x += (this.targetX - this.x) * Math.min(1, dt * 4);
         this.y += (this.targetY - this.y) * Math.min(1, dt * 4);
         if (this.stateTimer <= 0) {
           const activeMinions = game.enemies.filter((e) => !e.dead && e.isBossSummon).length;
-          if (activeMinions < 2) {
+          const aliveElite = game.enemies.some((e) => !e.dead && e.isBossSummon && e.isElite);
+          if (activeMinions < 2 && !aliveElite) {
+            const eliteMap = { nyxia: 'cat_thrower', zephyra: 'corgi_skater', malakor: 'shiba_samurai' };
+            const eliteType = eliteMap[this.bossKind] || 'delivery_scooter';
             const leftX = this.arena.minX + 160;
             const rightX = this.arena.maxX - 210;
-            const m0 = this.spec.minions[0];
-            const m1 = this.spec.minions[1];
             [
-              { type: m0, x: leftX, ringCol: this.spec.p1 },
-              { type: m1, x: rightX, ringCol: this.spec.p2 }
+              { type: this.spec.minions[0], x: leftX, ringCol: this.spec.p1 },
+              { type: eliteType, x: rightX, ringCol: '#ffe58f' }
             ].forEach((cfg) => {
-              const isFly = cfg.type === 'wisp' || cfg.type === 'bomber';
-              const spawnY = isFly ? 310 : 525;
               const minion = new SR.Enemy({
-                type: cfg.type, x: cfg.x, y: spawnY, homeY: spawnY,
-                patrolMin: this.arena.minX + 30, patrolMax: this.arena.maxX - 30
+                type: cfg.type, x: cfg.x, y: 525, homeY: 525,
+                patrolMin: this.arena.minX + 24, patrolMax: this.arena.maxX - 24
               }, level.meta);
+              minion.x = SR.clamp(cfg.x, this.arena.minX + 24, this.arena.maxX - minion.w - 24);
+              minion.y = minion.flying ? 310 : (575 - minion.h);
+              minion.homeY = minion.y;
+              minion.hp = Math.max(24, Math.round(minion.hp * 0.65));
+              minion.maxHp = minion.hp;
               minion.isBossSummon = true;
               game.enemies.push(minion);
-              SR.particles.spawnRing(cfg.x + 19, spawnY, cfg.ringCol, 48, 0.35);
+              SR.particles.spawnRing(minion.cx, minion.cy, minion.isElite ? '#ffe58f' : cfg.ringCol, minion.isElite ? 64 : 48, 0.35);
+              if (minion.isElite) {
+                SR.particles.spawnText(minion.cx, minion.y - 22, `★ ${minion.displayName} 增援！`, '#ffe894', 1.05);
+              }
             });
             SR.audio.castMagic();
           }
           this.state = 'float_idle';
-          this.stateTimer = 0.78 / spd;
+          this.stateTimer = 1.10 / spd;
         }
       }
     }
   }
 
   const HUMAN_SUMMON_CD = {
-    human_grandma: { p1: 22.0, p2: 18.0 },
-    human_athlete: { p1: 20.5, p2: 17.0 },
-    human_trader: { p1: 19.0, p2: 15.5 },
-    human_engineer: { p1: 17.5, p2: 14.5 },
-    human_jk: { p1: 16.0, p2: 13.5 }
+    human_grandma: { p1: 23.0, p2: 19.0 },
+    human_athlete: { p1: 22.0, p2: 18.0 },
+    human_trader: { p1: 21.0, p2: 17.0 },
+    human_engineer: { p1: 20.0, p2: 16.0 },
+    human_jk: { p1: 19.0, p2: 15.0 }
   };
 
   // ==================== 5 SUPER-CHARGED HUMAN FINAL BOSSES ====================
@@ -545,7 +552,7 @@ window.SR = window.SR || {};
       const minX = this.arena.minX + 72;
       const maxX = this.arena.maxX - 72;
       const span = maxX - minX;
-      const slots = [0.12, 0.36, 0.64, 0.88].map((f) => {
+      const slots = [0.18, 0.50, 0.82].map((f) => {
         let sx = minX + span * f;
         // Nudge away if directly overlapping the player so summons never cheap-shot on spawn!
         if (Math.abs(sx - player.cx) < 88) {
@@ -556,9 +563,8 @@ window.SR = window.SR || {};
       const eliteType = cfg.elites[this.summonCount % cfg.elites.length];
       this.pendingSummonSpots = [
         { type: cfg.soldiers[0], x: slots[0], floorY, isElite: false },
-        { type: cfg.soldiers[1], x: slots[1], floorY, isElite: false },
-        { type: cfg.soldiers[2], x: slots[3], floorY, isElite: false },
-        { type: eliteType,       x: slots[2], floorY, isElite: true }
+        { type: eliteType,       x: slots[1], floorY, isElite: true },
+        { type: cfg.soldiers[1], x: slots[2], floorY, isElite: false }
       ];
       this.state = 'summon_prep';
       this.stateTimer = 0.72;
@@ -629,7 +635,7 @@ window.SR = window.SR || {};
       if (this.typingAnim > 0) this.typingAnim -= dt;
       if (this.summonCooldown > 0) this.summonCooldown -= dt;
       this.stateTimer -= dt;
-      const spd = (this.phase === 2 ? 1.24 : 1.0) * this.spec.spd;
+      const spd = (this.phase === 2 ? 1.16 : 1.0) * this.spec.spd;
 
       // Unified sky-drop rain system (Engineer Error Rain, Stock Trader Market Crash, Mika Sneeze Rain & Cooking Food Rain!)
       for (let i = this.meteors.length - 1; i >= 0; i--) {
@@ -736,60 +742,60 @@ window.SR = window.SR || {};
             SR.particles.spawnText(this.cx, this.y - 22, '渦輪輪椅借過喔！！', '#9cf5e3', 1.18);
           } else if (this.state === 'market_rain_prep') {
             this.stateTimer = 1.25;
-            const cnt = this.phase === 2 ? 9 : 7;
+            const cnt = this.phase === 2 ? 6 : 4;
             this.queueSkyDrops(
-              cnt, 'sky_food', null, ['#ff9fd6', '#ffe58f', '#9cf5e3'], 0.7, 460,
-              (idx) => ({ foodType: ['cabbage', 'tangerine', 'dumpling', 'red_envelope'][idx % 4] })
+              cnt, 'sky_food', null, ['#ff9fd6', '#ffe58f', '#9cf5e3'], 0.82, 435,
+              (idx) => ({ foodType: ['rice_bowl', 'pork_belly', 'pork_knuckle', 'cabbage', 'dumpling', 'red_envelope'][idx % 6] })
             );
             SR.audio.bossAlert();
-            SR.particles.spawnText(this.cx, this.y - 22, '菜市場大特價雨！！', '#ffe58f', 1.16);
+            SR.particles.spawnText(this.cx, this.y - 22, '阿嬤辦桌特價雨！！', '#ffe58f', 1.16);
           }
         }
       } else if (this.state === 'market_rain_prep') {
         this.vx = 0;
         if (this.stateTimer <= 0) {
           this.state = 'idle';
-          this.stateTimer = 0.78 / spd;
+          this.stateTimer = 1.08 / spd;
         }
       } else if (this.state === 'scold_prep') {
         this.facing = player.cx >= this.cx ? 1 : -1;
         this.vx = 0;
         if (this.stateTimer <= 0) {
-          // Multi-directional 6-8 Scold Bubble Fan!
+          // Balanced 3-5 Homing Scold Bubble Fan!
           const words = ['不穿外套!', '太晚睡!', '去吃飯!', '滑手機!', '念你喔!', '快喝水!', '多吃菜!'];
-          const count = this.phase === 2 ? 8 : 6;
+          const count = this.phase === 2 ? 5 : 3;
           const base = this.facing > 0 ? -0.25 : Math.PI + 0.25;
           for (let i = 0; i < count; i++) {
-            const ang = base + (i - (count - 1) * 0.5) * 0.30;
+            const ang = base + (i - (count - 1) * 0.5) * 0.34;
             game.enemyProjectiles.push({
               kind: 'scold', x: this.cx + this.facing * 24, y: this.cy - 12,
-              vx: Math.cos(ang) * 285, vy: Math.sin(ang) * 285 - 50,
-              homingPlayer: true, homingTurn: 3.1, homingSpeed: this.phase === 2 ? 290 : 250,
+              vx: Math.cos(ang) * 245, vy: Math.sin(ang) * 245 - 40,
+              homingPlayer: true, homingTurn: 2.7, homingSpeed: this.phase === 2 ? 250 : 220,
               label: words[(this.patternIndex + i) % words.length],
-              r: 13, life: 3.2, color: '#ff9fd6', deflectable: true
+              r: 13, life: 3.0, color: '#ff9fd6', deflectable: true
             });
           }
           SR.audio.castMagic();
           this.state = 'idle';
-          this.stateTimer = 0.85 / spd;
+          this.stateTimer = 1.12 / spd;
         }
       } else if (this.state === 'cane_prep') {
         this.facing = player.cx >= this.cx ? 1 : -1;
         this.vx = 0;
         if (this.stateTimer <= 0) {
-          // Fast Long-Range Cane Dash + upward market treats!
+          // Fast Long-Range Cane Dash + Grandma comfort dishes!
           this.state = 'cane_dash';
           this.stateTimer = 1.1;
-          this.trailTick = 0.22;
-          this.vx = this.facing * (this.phase === 2 ? 740 : 640);
+          this.trailTick = 0.28;
+          this.vx = this.facing * (this.phase === 2 ? 690 : 600);
           this.vy = -220;
           SR.audio.slide();
         }
       } else if (this.state === 'cane_dash') {
         this.trailTick -= dt;
         if (this.trailTick <= 0) {
-          this.trailTick = this.phase === 2 ? 0.32 : 0.48;
-          const foods = ['tangerine', 'dumpling', 'red_envelope'];
+          this.trailTick = this.phase === 2 ? 0.45 : 0.62;
+          const foods = ['rice_bowl', 'pork_belly', 'pork_knuckle'];
           game.enemyProjectiles.push({
             kind: 'delivery_food',
             foodType: foods[Math.floor(Math.random() * foods.length)],
@@ -800,10 +806,10 @@ window.SR = window.SR || {};
         }
         if (this.isAtArenaEdge(16) || this.stateTimer <= 0) {
           const floorY = this.getArenaFloorY(level);
-          this.spawnShockwaves(game, '#ff9fd6', 380, 15, 1.6, floorY - 14);
+          this.spawnShockwaves(game, '#ff9fd6', 350, 15, 1.6, floorY - 14);
           this.vx = 0;
           this.state = 'idle';
-          this.stateTimer = 0.78 / spd;
+          this.stateTimer = 1.08 / spd;
         }
       } else if (this.state === 'wheelchair_prep') {
         this.pushingWheelchair = true;
@@ -812,28 +818,31 @@ window.SR = window.SR || {};
         if (this.stateTimer <= 0) {
           // Ultra-Fast Full-Arena Turbo Wheelchair Charge!
           this.state = 'wheelchair_dash';
-          this.stateTimer = 1.45;
-          this.trailTick = 0.12;
-          this.vx = this.facing * (this.phase === 2 ? 840 : 720);
+          this.stateTimer = 1.4;
+          this.trailTick = 0.22;
+          this.vx = this.facing * (this.phase === 2 ? 780 : 680);
           SR.audio.slide();
         }
       } else if (this.state === 'wheelchair_dash') {
         this.pushingWheelchair = true;
         this.trailTick -= dt;
         if (this.trailTick <= 0) {
-          this.trailTick = this.phase === 2 ? 0.12 : 0.15;
-          // Flings hot tea cups upward while racing across the arena!
+          this.trailTick = this.phase === 2 ? 0.23 : 0.30;
+          // Flings hearty Grandma home-cooking dishes (白飯 / 五花肉 / 滷豬腳 — NO boba!)
+          const grandmaDishes = ['rice_bowl', 'pork_belly', 'pork_knuckle'];
           game.enemyProjectiles.push({
-            kind: 'boba', x: this.cx, y: this.y + 8,
-            vx: -this.facing * 140, vy: -410, gravity: 780, bounces: 1,
-            r: 10.5, life: 2.3, color: '#ffe58f', deflectable: true
+            kind: 'delivery_food',
+            foodType: grandmaDishes[(this.patternIndex + Math.floor(this.animTime * 10)) % grandmaDishes.length],
+            x: this.cx, y: this.y + 8,
+            vx: -this.facing * 135, vy: -390, gravity: 780, bounces: 1,
+            r: 11.5, life: 2.3, color: '#ffe58f', deflectable: true
           });
         }
         if (this.isAtArenaEdge(16) || this.stateTimer <= 0) {
           this.vx = 0;
           this.pushingWheelchair = false;
           this.state = 'idle';
-          this.stateTimer = 0.8 / spd;
+          this.stateTimer = 1.08 / spd;
         }
       }
       this.moveArenaBody(dt, level, false);
@@ -860,24 +869,24 @@ window.SR = window.SR || {};
             this.sportMode = 'basketball';
             this.stateTimer = 1.25;
             this.swingAnim = 0.4;
-            const cnt = this.phase === 2 ? 10 : 7;
+            const cnt = this.phase === 2 ? 6 : 4;
             this.queueSkyDrops(
-              cnt, 'sky_sport', null, ['#ff964f', '#c4ff6b', '#ffffff'], 0.68, 520,
+              cnt, 'sky_sport', null, ['#ff964f', '#c4ff6b', '#ffffff'], 0.80, 480,
               (idx) => ({ sportBall: ['basketball', 'tennis', 'shuttlecock', 'volleyball'][idx % 4] })
             );
             SR.audio.bossAlert();
             SR.particles.spawnText(this.cx, this.y - 22, '高空魔球發球雨！！', '#ffe58f', 1.16);
           } else if (this.state === 'tennis_prep') {
             this.sportMode = 'tennis';
-            this.stateTimer = 0.45 / spd;
+            this.stateTimer = 0.48 / spd;
             SR.particles.spawnText(this.cx, this.y - 22, '網球重砲齊發！', '#b8ff78', 1.1);
           } else if (this.state === 'basketball_prep') {
             this.sportMode = 'basketball';
-            this.stateTimer = 0.45 / spd;
+            this.stateTimer = 0.48 / spd;
             SR.particles.spawnText(this.cx, this.y - 22, '全場三分雨！！', '#ffaa66', 1.1);
           } else if (this.state === 'sprint_prep') {
             this.sportMode = 'sprint';
-            this.stateTimer = 0.48 / spd;
+            this.stateTimer = 0.50 / spd;
             SR.particles.spawnText(this.cx, this.y - 22, '超音速百米衝刺！！', '#ffe58f', 1.15);
           }
         }
@@ -885,46 +894,46 @@ window.SR = window.SR || {};
         this.vx = 0;
         if (this.stateTimer <= 0) {
           this.state = 'idle';
-          this.stateTimer = 0.78 / spd;
+          this.stateTimer = 1.08 / spd;
         }
       } else if (this.state === 'badminton_jump') {
         this.facing = player.cx >= this.cx ? 1 : -1;
         if (this.stateTimer <= 0) {
           this.swingAnim = 0.35;
           const baseAng = Math.atan2(player.cy - this.cy, player.cx - this.cx);
-          const count = this.phase === 2 ? 10 : 7;
+          const count = this.phase === 2 ? 6 : 4;
           for (let i = 0; i < count; i++) {
-            const ang = baseAng + (i - (count - 1) * 0.5) * 0.2;
-            const s = (i % 2 === 0 ? 485 : 400) * (this.phase === 2 ? 1.1 : 1.0);
+            const ang = baseAng + (i - (count - 1) * 0.5) * 0.24;
+            const s = (i % 2 === 0 ? 450 : 375) * (this.phase === 2 ? 1.07 : 1.0);
             game.enemyProjectiles.push({
               kind: 'shuttlecock', x: this.cx + this.facing * 20, y: this.cy - 10,
               vx: Math.cos(ang) * s, vy: Math.sin(ang) * s,
-              r: 9, life: 2.3, color: '#ffffff', deflectable: true
+              r: 9, life: 2.2, color: '#ffffff', deflectable: true
             });
           }
           SR.audio.slash(2);
           this.state = 'idle';
-          this.stateTimer = 0.78 / spd;
+          this.stateTimer = 1.08 / spd;
         }
       } else if (this.state === 'tennis_prep') {
         this.facing = player.cx >= this.cx ? 1 : -1;
         this.vx = 0;
         if (this.stateTimer <= 0) {
           this.swingAnim = 0.35;
-          const count = this.phase === 2 ? 9 : 6;
+          const count = this.phase === 2 ? 5 : 4;
           const baseAng = Math.atan2(player.cy - this.cy, player.cx - this.cx);
           for (let i = 0; i < count; i++) {
-            const ang = baseAng + (i - (count - 1) * 0.5) * 0.18;
+            const ang = baseAng + (i - (count - 1) * 0.5) * 0.22;
             game.enemyProjectiles.push({
               kind: 'tennis', x: this.cx + this.facing * 24, y: this.cy - 4,
-              vx: Math.cos(ang) * (this.phase === 2 ? 535 : 465),
-              vy: Math.sin(ang) * (this.phase === 2 ? 535 : 465),
-              r: 9.5, life: 2.4, color: '#c4ff6b', deflectable: true
+              vx: Math.cos(ang) * (this.phase === 2 ? 495 : 435),
+              vy: Math.sin(ang) * (this.phase === 2 ? 495 : 435),
+              r: 9.5, life: 2.3, color: '#c4ff6b', deflectable: true
             });
           }
           SR.audio.shoot(true);
           this.state = 'idle';
-          this.stateTimer = 0.78 / spd;
+          this.stateTimer = 1.08 / spd;
         }
       } else if (this.state === 'basketball_prep') {
         this.facing = player.cx >= this.cx ? 1 : -1;
@@ -932,18 +941,18 @@ window.SR = window.SR || {};
         if (this.stateTimer <= 0) {
           this.swingAnim = 0.35;
           this.vy = -280;
-          const count = this.phase === 2 ? 7 : 5;
+          const count = this.phase === 2 ? 4 : 3;
           for (let i = 0; i < count; i++) {
-            const speedX = (165 + i * 88) * this.facing;
+            const speedX = (175 + i * 110) * this.facing;
             game.enemyProjectiles.push({
               kind: 'basketball', x: this.cx + this.facing * 18, y: this.cy - 18,
-              vx: speedX, vy: -350 - i * 44, gravity: 820, bounces: 3,
-              r: 13.5, life: 3.5, color: '#ff964f', deflectable: true
+              vx: speedX, vy: -350 - i * 44, gravity: 820, bounces: 2,
+              r: 13.5, life: 3.1, color: '#ff964f', deflectable: true
             });
           }
           SR.audio.jump(false);
           this.state = 'idle';
-          this.stateTimer = 0.85 / spd;
+          this.stateTimer = 1.10 / spd;
         }
       } else if (this.state === 'sprint_prep') {
         this.facing = player.cx >= this.cx ? 1 : -1;
@@ -951,27 +960,27 @@ window.SR = window.SR || {};
         if (this.stateTimer <= 0) {
           // Ultra-Fast Long-Range 100m Sprint Dash!
           this.state = 'sprint_dash';
-          this.stateTimer = 1.35;
-          this.trailTick = 0.14;
-          this.vx = this.facing * (this.phase === 2 ? 860 : 750);
+          this.stateTimer = 1.3;
+          this.trailTick = 0.24;
+          this.vx = this.facing * (this.phase === 2 ? 800 : 710);
           SR.audio.slide();
         }
       } else if (this.state === 'sprint_dash') {
         this.trailTick -= dt;
         if (this.trailTick <= 0) {
-          this.trailTick = this.phase === 2 ? 0.13 : 0.18;
+          this.trailTick = this.phase === 2 ? 0.26 : 0.34;
           game.enemyProjectiles.push({
             kind: 'tennis', x: this.cx, y: this.cy - 6,
             vx: -this.facing * 110, vy: -320, gravity: 560,
-            r: 9, life: 2.0, color: '#c4ff6b', deflectable: true
+            r: 9, life: 1.9, color: '#c4ff6b', deflectable: true
           });
         }
         if (this.isAtArenaEdge(16) || this.stateTimer <= 0) {
           const floorY = this.getArenaFloorY(level);
-          this.spawnShockwaves(game, '#ffe58f', this.phase === 2 ? 410 : 350, 15, 1.65, floorY - 14);
+          this.spawnShockwaves(game, '#ffe58f', this.phase === 2 ? 380 : 330, 15, 1.55, floorY - 14);
           this.vx = 0;
           this.state = 'idle';
-          this.stateTimer = 0.74 / spd;
+          this.stateTimer = 1.08 / spd;
         }
       }
       this.moveArenaBody(dt, level, false);
@@ -1000,17 +1009,17 @@ window.SR = window.SR || {};
           } else if (this.state === 'crash_prep') {
             this.sportMode = 'crash';
             this.stateTimer = 1.35;
-            const cnt = this.phase === 2 ? 10 : 7;
-            this.queueSkyDrops(cnt, 'stock_crash', ['-10%', '跌停!', 'MARGIN', '斷頭!', '-9.9%', '崩盤!'], ['#52f29b', '#ff6b78'], 0.72, 620);
+            const cnt = this.phase === 2 ? 7 : 5;
+            this.queueSkyDrops(cnt, 'stock_crash', ['-10%', '跌停!', 'MARGIN', '斷頭!', '-9.9%', '崩盤!'], ['#52f29b', '#ff6b78'], 0.84, 570);
             SR.audio.bossAlert();
             SR.particles.spawnText(this.cx, this.y - 24, '大盤崩盤・跌停瀑布！！', '#52f29b', 1.18);
           } else if (this.state === 'bull_dash_prep') {
             this.sportMode = 'bull';
-            this.stateTimer = 0.48 / spd;
+            this.stateTimer = 0.50 / spd;
             SR.particles.spawnText(this.cx, this.y - 24, '漲停鎖死・暴力突破！！', '#ffe58f', 1.15);
           } else if (this.state === 'orders_prep') {
             this.sportMode = 'orders';
-            this.stateTimer = 0.48 / spd;
+            this.stateTimer = 0.50 / spd;
             if (SR.audio.stockBell) SR.audio.stockBell();
             SR.particles.spawnText(this.cx, this.y - 24, 'ALL-IN 軋空委託單！', '#9cf5e3', 1.1);
           }
@@ -1019,15 +1028,15 @@ window.SR = window.SR || {};
         this.facing = player.cx >= this.cx ? 1 : -1;
         this.vx = 0;
         if (this.stateTimer <= 0) {
-          // Multi-directional 8-12 Red & Green K-Line Candlesticks fan!
+          // Balanced 5-7 Red & Green K-Line Candlesticks fan!
           this.swingAnim = 0.35;
-          const count = this.phase === 2 ? 12 : 8;
+          const count = this.phase === 2 ? 7 : 5;
           const baseAng = Math.atan2(player.cy - this.cy, player.cx - this.cx);
-          const spread = this.phase === 2 ? 1.95 : 1.5;
+          const spread = this.phase === 2 ? 1.65 : 1.3;
           for (let i = 0; i < count; i++) {
             const ang = baseAng - spread * 0.5 + (spread / (count - 1)) * i;
             const isBull = i % 2 === 0;
-            const pSpd = (isBull ? 445 : 370) * (this.phase === 2 ? 1.12 : 1.0);
+            const pSpd = (isBull ? 420 : 350) * (this.phase === 2 ? 1.08 : 1.0);
             game.enemyProjectiles.push({
               kind: 'candlestick',
               bull: isBull,
@@ -1036,31 +1045,31 @@ window.SR = window.SR || {};
               vx: Math.cos(ang) * pSpd,
               vy: Math.sin(ang) * pSpd,
               r: 11,
-              life: 2.6,
+              life: 2.5,
               color: isBull ? '#ff5c74' : '#4df29c',
               deflectable: true
             });
           }
           SR.audio.shoot(true);
           this.state = 'idle';
-          this.stateTimer = 0.78 / spd;
+          this.stateTimer = 1.08 / spd;
         }
       } else if (this.state === 'crash_prep') {
         this.vx = 0;
         if (this.stateTimer <= 0) {
-          // Sweeps 4–6 aimed sell-off candlesticks at ground/mid level!
-          const count = this.phase === 2 ? 6 : 4;
+          // Sweeps 3–4 aimed sell-off candlesticks at ground/mid level!
+          const count = this.phase === 2 ? 4 : 3;
           const baseAng = Math.atan2(player.cy - this.cy, player.cx - this.cx);
           for (let i = 0; i < count; i++) {
-            const ang = baseAng + (i - (count - 1) * 0.5) * 0.2;
+            const ang = baseAng + (i - (count - 1) * 0.5) * 0.22;
             game.enemyProjectiles.push({
               kind: 'candlestick', bull: false, x: this.cx, y: this.cy,
-              vx: Math.cos(ang) * 425, vy: Math.sin(ang) * 425,
-              r: 11, life: 2.3, color: '#4df29c', deflectable: true
+              vx: Math.cos(ang) * 395, vy: Math.sin(ang) * 395,
+              r: 11, life: 2.2, color: '#4df29c', deflectable: true
             });
           }
           this.state = 'idle';
-          this.stateTimer = 0.76 / spd;
+          this.stateTimer = 1.06 / spd;
         }
       } else if (this.state === 'bull_dash_prep') {
         this.facing = player.cx >= this.cx ? 1 : -1;
@@ -1068,48 +1077,48 @@ window.SR = window.SR || {};
         if (this.stateTimer <= 0) {
           // Ultra-Fast Full-Arena Bull-Run Breakout Dash!
           this.state = 'bull_dash';
-          this.stateTimer = 1.4;
-          this.trailTick = 0.1;
-          this.vx = this.facing * (this.phase === 2 ? 880 : 760);
+          this.stateTimer = 1.35;
+          this.trailTick = 0.2;
+          this.vx = this.facing * (this.phase === 2 ? 820 : 720);
           SR.audio.slide();
         }
       } else if (this.state === 'bull_dash') {
         this.trailTick -= dt;
         if (this.trailTick <= 0) {
-          this.trailTick = this.phase === 2 ? 0.095 : 0.13;
+          this.trailTick = this.phase === 2 ? 0.21 : 0.28;
           // Launches rising red/gold breakout candlesticks upward as he surges across the arena!
           game.enemyProjectiles.push({
             kind: 'candlestick', bull: true, x: this.cx, y: this.cy - 10,
-            vx: -this.facing * 95, vy: -310, gravity: 480,
-            r: 10.5, life: 2.1, color: '#ff5c74', deflectable: true
+            vx: -this.facing * 95, vy: -300, gravity: 480,
+            r: 10.5, life: 2.0, color: '#ff5c74', deflectable: true
           });
         }
         if (this.isAtArenaEdge(16) || this.stateTimer <= 0) {
           this.vx = 0;
           this.state = 'idle';
-          this.stateTimer = 0.74 / spd;
+          this.stateTimer = 1.06 / spd;
         }
       } else if (this.state === 'orders_prep') {
         this.facing = player.cx >= this.cx ? 1 : -1;
         this.vx = 0;
         if (this.stateTimer <= 0) {
           const labels = ['BUY!', 'SELL!', 'ALL-IN', '+10%', 'SHORT', 'CALL!'];
-          const count = this.phase === 2 ? 8 : 5;
+          const count = this.phase === 2 ? 5 : 3;
           for (let i = 0; i < count; i++) {
-            const ang = (this.facing > 0 ? -0.4 : Math.PI + 0.4) + (i - (count - 1) * 0.5) * 0.34;
+            const ang = (this.facing > 0 ? -0.4 : Math.PI + 0.4) + (i - (count - 1) * 0.5) * 0.36;
             const isBuy = i % 2 === 0;
             game.enemyProjectiles.push({
               kind: 'stock_order',
               x: this.cx + this.facing * 20, y: this.cy - 14,
-              vx: Math.cos(ang) * 265, vy: Math.sin(ang) * 265 - 70,
-              homingPlayer: true, homingTurn: 3.1, homingSpeed: this.phase === 2 ? 305 : 265,
+              vx: Math.cos(ang) * 240, vy: Math.sin(ang) * 240 - 60,
+              homingPlayer: true, homingTurn: 2.7, homingSpeed: this.phase === 2 ? 265 : 235,
               label: labels[(this.patternIndex + i) % labels.length],
-              r: 12, life: 3.1, color: isBuy ? '#ff7088' : '#52f29b', deflectable: true
+              r: 12, life: 2.9, color: isBuy ? '#ff7088' : '#52f29b', deflectable: true
             });
           }
           SR.audio.castMagic();
           this.state = 'idle';
-          this.stateTimer = 0.82 / spd;
+          this.stateTimer = 1.10 / spd;
         }
       }
       this.moveArenaBody(dt, level, false);
@@ -1131,15 +1140,15 @@ window.SR = window.SR || {};
             SR.particles.spawnText(this.cx, this.y - 22, devCalls[this.patternIndex % devCalls.length], '#9cf5e3', 1.08);
           } else if (this.state === 'stack_overflow') {
             this.typingAnim = 1.0;
-            this.stateTimer = 1.32;
-            const cnt = this.phase === 2 ? 11 : 8;
+            this.stateTimer = 1.35;
+            const cnt = this.phase === 2 ? 7 : 5;
             const dropLabels = ['404 Not Found', '429', 'Not Enough Tokens', '500', 'NULL', 'NaN', 'OOM', 'SEGFAULT', 'BUG!'];
-            this.queueSkyDrops(cnt, 'error_drop', dropLabels, ['#8ef7c8', '#ff88a8'], 0.74, 620);
+            this.queueSkyDrops(cnt, 'error_drop', dropLabels, ['#8ef7c8', '#ff88a8'], 0.84, 575);
             SR.audio.bossAlert();
             const errCalls = ['STACK OVERFLOW!!', '404 Not Found!!', '429 Too Many Requests!!'];
             SR.particles.spawnText(this.cx, this.y - 22, errCalls[this.patternIndex % errCalls.length], '#ff88a8', 1.18);
           } else if (this.state === 'coffee_prep') {
-            this.stateTimer = 0.48 / spd;
+            this.stateTimer = 0.50 / spd;
             SR.particles.spawnText(this.cx, this.y - 22, '三倍濃縮咖啡衝刺！！', '#ffe58f', 1.1);
           }
         }
@@ -1148,57 +1157,57 @@ window.SR = window.SR || {};
         this.vx = 0;
         if (this.stateTimer <= 0) {
           const snippets = ['{ }', '01', '404', '429', 'NULL', 'NaN', 'No Tokens', 'ERR', '=>', '!='];
-          const count = this.phase === 2 ? 9 : 6;
+          const count = this.phase === 2 ? 6 : 4;
           for (let i = 0; i < count; i++) {
-            const ang = (this.facing > 0 ? -0.35 : Math.PI + 0.35) + (i - (count - 1) * 0.5) * 0.30;
+            const ang = (this.facing > 0 ? -0.35 : Math.PI + 0.35) + (i - (count - 1) * 0.5) * 0.34;
             game.enemyProjectiles.push({
               kind: 'code', x: this.cx + this.facing * 24, y: this.cy - 10,
-              vx: Math.cos(ang) * 290, vy: Math.sin(ang) * 290 - 65,
-              homingPlayer: true, homingTurn: 3.15, homingSpeed: this.phase === 2 ? 310 : 270,
+              vx: Math.cos(ang) * 260, vy: Math.sin(ang) * 260 - 55,
+              homingPlayer: true, homingTurn: 2.75, homingSpeed: this.phase === 2 ? 270 : 240,
               label: snippets[(this.patternIndex + i) % snippets.length],
-              r: 12, life: 3.3, color: '#7ef7b8', deflectable: true
+              r: 12, life: 3.0, color: '#7ef7b8', deflectable: true
             });
           }
           SR.audio.castMagic();
           this.state = 'idle';
-          this.stateTimer = 0.82 / spd;
+          this.stateTimer = 1.08 / spd;
         }
       } else if (this.state === 'stack_overflow') {
         this.vx = 0;
         if (this.stateTimer <= 0) {
           // Fires an aimed fan of API/Runtime error bolts to pressure alongside the sky drops!
           const errBolts = ['404', '429', '500', 'No Tokens', 'ERR', 'NULL', 'NaN'];
-          const count = this.phase === 2 ? 7 : 5;
+          const count = this.phase === 2 ? 5 : 3;
           const baseAng = Math.atan2(player.cy - this.cy, player.cx - this.cx);
           for (let i = 0; i < count; i++) {
-            const ang = baseAng + (i - (count - 1) * 0.5) * 0.22;
-            const pSpd = this.phase === 2 ? 445 : 385;
+            const ang = baseAng + (i - (count - 1) * 0.5) * 0.24;
+            const pSpd = this.phase === 2 ? 415 : 365;
             game.enemyProjectiles.push({
               kind: 'code', x: this.cx + this.facing * 20, y: this.cy - 8,
               vx: Math.cos(ang) * pSpd, vy: Math.sin(ang) * pSpd,
               label: errBolts[(this.patternIndex + i) % errBolts.length],
-              r: 11.5, life: 2.5, color: i % 2 === 0 ? '#ff88a8' : '#8ef7c8', deflectable: true
+              r: 11.5, life: 2.4, color: i % 2 === 0 ? '#ff88a8' : '#8ef7c8', deflectable: true
             });
           }
           SR.audio.shoot(true);
           this.state = 'idle';
-          this.stateTimer = 0.76 / spd;
+          this.stateTimer = 1.06 / spd;
         }
       } else if (this.state === 'coffee_prep') {
         this.facing = player.cx >= this.cx ? 1 : -1;
         this.vx = 0;
         if (this.stateTimer <= 0) {
-          // Fast Long-Range Caffeinated Dash + 5-7 bouncing hot coffee mugs!
+          // Fast Long-Range Caffeinated Dash + 3-4 bouncing hot coffee mugs!
           this.state = 'coffee_dash';
           this.stateTimer = 1.3;
-          this.trailTick = 0.16;
-          this.vx = this.facing * (this.phase === 2 ? 820 : 700);
-          const mugVxs = this.phase === 2 ? [-320, -210, -100, 0, 100, 210, 320] : [-280, -140, 0, 140, 280];
+          this.trailTick = 0.24;
+          this.vx = this.facing * (this.phase === 2 ? 780 : 670);
+          const mugVxs = this.phase === 2 ? [-270, -90, 90, 270] : [-230, 0, 230];
           mugVxs.forEach((mvx) => {
             game.enemyProjectiles.push({
               kind: 'boba', x: this.cx, y: this.y + 10,
-              vx: mvx, vy: -395, gravity: 780, bounces: 2,
-              r: 10.5, life: 2.5, color: '#d49a6a', deflectable: true
+              vx: mvx, vy: -385, gravity: 780, bounces: 2,
+              r: 10.5, life: 2.4, color: '#d49a6a', deflectable: true
             });
           });
           SR.audio.slide();
@@ -1206,19 +1215,19 @@ window.SR = window.SR || {};
       } else if (this.state === 'coffee_dash') {
         this.trailTick -= dt;
         if (this.trailTick <= 0) {
-          this.trailTick = this.phase === 2 ? 0.13 : 0.18;
+          this.trailTick = this.phase === 2 ? 0.25 : 0.34;
           game.enemyProjectiles.push({
             kind: 'boba', x: this.cx, y: this.y + 8,
             vx: -this.facing * 115, vy: -350, gravity: 780, bounces: 1,
-            r: 10, life: 2.2, color: '#d49a6a', deflectable: true
+            r: 10, life: 2.1, color: '#d49a6a', deflectable: true
           });
         }
         if (this.isAtArenaEdge(16) || this.stateTimer <= 0) {
           const floorY = this.getArenaFloorY(level);
-          this.spawnShockwaves(game, '#8ef7c8', this.phase === 2 ? 430 : 370, 15, 1.7, floorY - 14);
+          this.spawnShockwaves(game, '#8ef7c8', this.phase === 2 ? 400 : 345, 15, 1.65, floorY - 14);
           this.vx = 0;
           this.state = 'idle';
-          this.stateTimer = 0.74 / spd;
+          this.stateTimer = 1.06 / spd;
         }
       }
       this.moveArenaBody(dt, level, false);
@@ -1245,18 +1254,18 @@ window.SR = window.SR || {};
             SR.particles.spawnText(this.cx, this.y - 24, '哈…哈…超強噴嚏要來了！！', '#b8f3ff', 1.12);
           } else if (this.state === 'dumbbell_prep') {
             this.sportMode = 'workout';
-            this.stateTimer = 0.46 / spd;
-            this.barrageLeft = this.phase === 2 ? 7 : 5;
+            this.stateTimer = 0.50 / spd;
+            this.barrageLeft = this.phase === 2 ? 5 : 3;
             this.barrageTick = 0;
             SR.particles.spawnText(this.cx, this.y - 24, '啞鈴連發特訓！！', '#ff9fd6', 1.15);
           } else if (this.state === 'cooking_prep') {
             this.sportMode = 'cooking';
-            this.stateTimer = 0.62 / spd;
+            this.stateTimer = 0.64 / spd;
             if (SR.audio.wokSizzle) SR.audio.wokSizzle();
             SR.particles.spawnText(this.cx, this.y - 24, '家政課・麻辣鴛鴦火鍋！！', '#ff8870', 1.18);
           } else if (this.state === 'workout_dash_prep') {
             this.sportMode = 'workout';
-            this.stateTimer = 0.48 / spd;
+            this.stateTimer = 0.52 / spd;
             SR.particles.spawnText(this.cx, this.y - 24, '全場全力衝刺！！', '#ff9fd6', 1.15);
           }
         }
@@ -1264,7 +1273,7 @@ window.SR = window.SR || {};
         this.facing = player.cx >= this.cx ? 1 : -1;
         this.vx = 0;
         if (this.stateTimer <= 0) {
-          // 1) MASSIVE MULTI-DIRECTIONAL SNEEZE BLAST (11–15 items in 175° spread!)
+          // 1) Balanced Multi-Directional Sneeze Blast (6-8 items)
           this.swingAnim = 0.4;
           this.vx = -this.facing * 150;
           if (SR.audio.sneeze) SR.audio.sneeze(); else SR.audio.slash(3);
@@ -1274,33 +1283,33 @@ window.SR = window.SR || {};
           });
 
           const sneezeKinds = ['sneeze', 'tissue', 'mask', 'eraser', 'pencil'];
-          const count = this.phase === 2 ? 13 : 10;
+          const count = this.phase === 2 ? 8 : 6;
           const baseAng = Math.atan2(player.cy - (this.cy - 14), player.cx - this.cx);
-          const spread = this.phase === 2 ? 2.6 : 2.1; // Huge multi-direction burst!
+          const spread = this.phase === 2 ? 2.15 : 1.75;
           for (let i = 0; i < count; i++) {
             const ang = baseAng - spread * 0.5 + (spread / (count - 1)) * i;
             const sk = sneezeKinds[i % sneezeKinds.length];
-            const pSpd = (sk === 'sneeze' ? 450 : sk === 'pencil' ? 420 : 325) * (this.phase === 2 ? 1.07 : 1.0);
+            const pSpd = (sk === 'sneeze' ? 420 : sk === 'pencil' ? 395 : 310) * (this.phase === 2 ? 1.06 : 1.0);
             game.enemyProjectiles.push({
               kind: sk,
               x: this.cx + this.facing * 24, y: this.cy - 14,
               vx: Math.cos(ang) * pSpd, vy: Math.sin(ang) * pSpd,
               r: sk === 'tissue' || sk === 'mask' ? 12 : 10,
-              life: 2.7,
+              life: 2.5,
               color: sk === 'sneeze' ? '#b8f4ff' : (sk === 'pencil' ? '#ffe58f' : '#ffffff'),
               deflectable: true
             });
           }
 
           // 2) ITEMS FALLING FROM THE SKY (tissues, masks, erasers raining across arena!)
-          const skyCnt = this.phase === 2 ? 8 : 6;
+          const skyCnt = this.phase === 2 ? 6 : 4;
           this.queueSkyDrops(
-            skyCnt, 'sky_sneeze', null, ['#d8fbff', '#ffffff', '#ffbae0'], 0.68, 445,
+            skyCnt, 'sky_sneeze', null, ['#d8fbff', '#ffffff', '#ffbae0'], 0.80, 425,
             (idx) => ({ itemType: ['tissue', 'mask', 'eraser', 'pencil'][idx % 4] })
           );
 
           this.state = 'idle';
-          this.stateTimer = 0.88 / spd;
+          this.stateTimer = 1.10 / spd;
         }
       } else if (this.state === 'dumbbell_prep') {
         this.facing = player.cx >= this.cx ? 1 : -1;
@@ -1310,32 +1319,31 @@ window.SR = window.SR || {};
           this.barrageTick = 0;
         }
       } else if (this.state === 'dumbbell_barrage') {
-        // CRAZY-FAST RAPID-FIRE BALLISTIC DUMBBELLS aimed straight at player's current location!
+        // Ballistic Dumbbells aimed cleanly with dodgable cadence!
         this.facing = player.cx >= this.cx ? 1 : -1;
         this.vx = 0;
         this.barrageTick -= dt;
         if (this.barrageTick <= 0 && this.barrageLeft > 0) {
           this.barrageLeft--;
-          this.barrageTick = this.phase === 2 ? 0.16 : 0.20; // Rapid fire!
+          this.barrageTick = this.phase === 2 ? 0.19 : 0.24;
           this.swingAnim = 0.22;
           const sx = this.cx + this.facing * 18;
           const sy = this.cy - 22;
           const g = 1150;
           const dist = Math.hypot(player.cx - sx, player.cy - sy);
-          // Fast ballistic flight time scaled smoothly by distance (0.36s..0.58s -> blazing fast!)
-          const flightT = SR.clamp(dist / 950, 0.36, 0.58);
-          const leadX = player.cx + (player.vx || 0) * flightT * 0.26;
+          const flightT = SR.clamp(dist / 900, 0.38, 0.62);
+          const leadX = player.cx + (player.vx || 0) * flightT * 0.22;
           const vel = solveBallistic(sx, sy, leadX, player.cy, g, flightT);
 
           game.enemyProjectiles.push({
             kind: 'dumbbell',
             x: sx, y: sy,
-            vx: SR.clamp(vel.vx, -900, 900),
-            vy: SR.clamp(vel.vy, -800, 420),
+            vx: SR.clamp(vel.vx, -860, 860),
+            vy: SR.clamp(vel.vy, -760, 420),
             gravity: g,
             bounces: 1,
             r: 13,
-            life: 2.3,
+            life: 2.2,
             color: '#ff7eb6',
             deflectable: true
           });
@@ -1343,7 +1351,7 @@ window.SR = window.SR || {};
         }
         if (this.barrageLeft <= 0 && this.barrageTick <= 0) {
           this.state = 'idle';
-          this.stateTimer = 0.85 / spd;
+          this.stateTimer = 1.12 / spd;
         }
       } else if (this.state === 'cooking_prep') {
         // BUBBLING HOTPOT ANIMATION with rising broth steam & spicy sparks!
@@ -1361,7 +1369,7 @@ window.SR = window.SR || {};
           SR.particles.spawnText(this.cx + this.facing * 20, this.y - 26, '滾燙火鍋上桌！！', '#ff8870', 1.32);
 
           const hotpotItems = ['hotpot_pot', 'meat_slice', 'fishball', 'tofu_cube', 'enoki', 'shrimp'];
-          const count = this.phase === 2 ? 8 : 6;
+          const count = this.phase === 2 ? 6 : 4;
           for (let i = 0; i < count; i++) {
             const frac = (i / (count - 1)) - 0.5;
             const aimX = (player.cx - this.cx) * (0.95 + frac * 0.75);
@@ -1377,21 +1385,21 @@ window.SR = window.SR || {};
               gravity: 760,
               bounces: 1,
               r: item === 'hotpot_pot' ? 14 : 12,
-              life: 3.0,
+              life: 2.8,
               color: '#ff8870',
               deflectable: true
             });
           }
 
           // 2) HOTPOT INGREDIENTS RAINING FROM THE SKY! (火鍋、肉片、魚板丸子、嫩豆腐、金針菇、鮮蝦)
-          const foodRainCnt = this.phase === 2 ? 8 : 6;
+          const foodRainCnt = this.phase === 2 ? 6 : 4;
           this.queueSkyDrops(
-            foodRainCnt, 'sky_food', null, ['#ff8870', '#ffe07d', '#ffffff'], 0.72, 455,
+            foodRainCnt, 'sky_food', null, ['#ff8870', '#ffe07d', '#ffffff'], 0.82, 435,
             (idx) => ({ foodType: hotpotItems[idx % hotpotItems.length] })
           );
 
           this.state = 'idle';
-          this.stateTimer = 0.88 / spd;
+          this.stateTimer = 1.12 / spd;
         }
       } else if (this.state === 'workout_dash_prep') {
         this.facing = player.cx >= this.cx ? 1 : -1;
@@ -1399,19 +1407,19 @@ window.SR = window.SR || {};
         if (this.stateTimer <= 0) {
           // Ultra-Fast Long-Range Full-Arena Workout Dash!
           this.state = 'workout_dash';
-          this.stateTimer = 1.35;
-          this.trailTick = 0.2;
+          this.stateTimer = 1.3;
+          this.trailTick = 0.25;
           this.swingAnim = 1.1;
-          this.vx = this.facing * (this.phase === 2 ? 850 : 740);
+          this.vx = this.facing * (this.phase === 2 ? 810 : 710);
           SR.audio.slide();
         }
       } else if (this.state === 'workout_dash') {
         this.trailTick -= dt;
         if (this.trailTick <= 0) {
-          this.trailTick = this.phase === 2 ? 0.18 : 0.24;
+          this.trailTick = this.phase === 2 ? 0.27 : 0.36;
           game.enemyProjectiles.push({
             kind: 'dumbbell', x: this.cx, y: this.cy - 8,
-            vx: -this.facing * 105, vy: -340, gravity: 720, bounces: 1,
+            vx: -this.facing * 105, vy: -330, gravity: 720, bounces: 1,
             r: 12, life: 1.9, color: '#ff7eb6', deflectable: true
           });
         }
@@ -1426,10 +1434,10 @@ window.SR = window.SR || {};
             player.takeDamage(1, this.facing, game, false, 'dash');
           }
           const floorY = this.getArenaFloorY(level);
-          this.spawnShockwaves(game, '#ff9fd6', this.phase === 2 ? 430 : 370, 15, 1.75, floorY - 14);
+          this.spawnShockwaves(game, '#ff9fd6', this.phase === 2 ? 405 : 350, 15, 1.65, floorY - 14);
           this.vx = 0;
           this.state = 'idle';
-          this.stateTimer = 0.72 / spd;
+          this.stateTimer = 1.08 / spd;
         }
       }
       this.moveArenaBody(dt, level, false);

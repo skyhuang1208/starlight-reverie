@@ -53,7 +53,10 @@ window.SR = window.SR || {};
       this.comboStep = 0;
       this.comboResetTimer = 0;
       this.shotCount = 0;
+      this.skillMaxCharges = this.def.skillMaxCharges || 2;
+      this.skillCharges = this.skillMaxCharges;
       this.skillTimer = 0;
+      this.skillCastGap = 0;
       this.ultimateTimer = 0;
       this.ultimateFlash = 0;
       this.invulnTimer = 0;
@@ -138,7 +141,7 @@ window.SR = window.SR || {};
       const bottom = this.y + this.h;
       this.h = this.slideH;
       this.y = bottom - this.h;
-      const slowMult = this.slowTimer > 0 ? 0.46 : 1.0;
+      const slowMult = this.slowTimer > 0 ? 0.78 : 1.0;
       this.vx = this.facing * this.def.slideSpeed * slowMult;
       this.squashX = 1.32;
       this.squashY = 0.72;
@@ -210,7 +213,17 @@ window.SR = window.SR || {};
         this.comboResetTimer -= dt;
         if (this.comboResetTimer <= 0) this.comboStep = 0;
       }
-      if (this.skillTimer > 0) this.skillTimer -= dt;
+      if (this.skillCastGap > 0) this.skillCastGap -= dt;
+      if (this.skillCharges < this.skillMaxCharges) {
+        if (this.skillTimer <= 0) this.skillTimer = this.def.skillCooldown;
+        this.skillTimer -= dt;
+        if (this.skillTimer <= 0) {
+          this.skillCharges++;
+          this.skillTimer = this.skillCharges < this.skillMaxCharges ? this.def.skillCooldown : 0;
+        }
+      } else {
+        this.skillTimer = 0;
+      }
       if (this.ultimateTimer > 0) this.ultimateTimer -= dt;
       if (this.ultimateFlash > 0) this.ultimateFlash -= dt;
       if (this.invulnTimer > 0) this.invulnTimer -= dt;
@@ -259,7 +272,7 @@ window.SR = window.SR || {};
         this.jumpBuffer = 0.14;
       }
 
-      const speedMult = this.slowTimer > 0 ? 0.28 : 1.0;
+      const speedMult = this.slowTimer > 0 ? 0.68 : 1.0;
       this.updateHorizontalMotion(dt, move, speedMult, input, level);
       this.updateJumpAndGravity(dt, input, level);
       this.handleCombatInputs(input, level, game);
@@ -446,7 +459,7 @@ window.SR = window.SR || {};
       if (input.attackHeld && this.attackTimer <= 0 && this.hurtTimer <= 0 && !this.bladeSurging) {
         this.performAttack(game);
       }
-      if (input.skillPressed && this.skillTimer <= 0 && this.hurtTimer <= 0 && !this.bladeSurging) {
+      if (input.skillPressed && this.skillCharges > 0 && this.skillCastGap <= 0 && this.hurtTimer <= 0 && !this.bladeSurging) {
         this.performSpecial(level, game);
       }
       if (input.ultimatePressed && this.ultimateTimer <= 0 && this.hurtTimer <= 0) {
@@ -778,7 +791,11 @@ window.SR = window.SR || {};
 
     // [2 / RMB] Skill
     performSpecial(level, game) {
-      this.skillTimer = this.def.skillCooldown;
+      this.skillCharges = Math.max(0, this.skillCharges - 1);
+      this.skillCastGap = 0.16;
+      if (this.skillTimer <= 0) {
+        this.skillTimer = this.def.skillCooldown;
+      }
       this.attackAnim = 0.34;
       this.castRecoil = 1.0;
       const baseAng = this.aimAngle;

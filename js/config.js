@@ -65,7 +65,8 @@ window.SR = window.SR || {};
       slideSpeed: 620,
       slideDuration: 0.52,
       attackCooldown: 0.23,
-      skillCooldown: 3.2,
+      skillCooldown: 2.3,
+      skillMaxCharges: 2,
       ultimateCooldown: 15.0,
       primaryColor: '#8be4ff',
       secondaryColor: '#fff0b3',
@@ -84,7 +85,8 @@ window.SR = window.SR || {};
       slideSpeed: 595,
       slideDuration: 0.50,
       attackCooldown: 0.195,
-      skillCooldown: 3.6,
+      skillCooldown: 2.5,
+      skillMaxCharges: 2,
       ultimateCooldown: 15.0,
       primaryColor: '#ffbfa0',
       secondaryColor: '#ffe58f',
@@ -103,7 +105,8 @@ window.SR = window.SR || {};
       slideSpeed: 565,
       slideDuration: 0.52,
       attackCooldown: 0.27,
-      skillCooldown: 4.2,
+      skillCooldown: 2.8,
+      skillMaxCharges: 2,
       ultimateCooldown: 15.0,
       primaryColor: '#d1a8ff',
       secondaryColor: '#9cf5e3',
@@ -151,22 +154,22 @@ window.SR = window.SR || {};
     }
   ];
 
-  // Animal / Fantasy Creature Boss Specs (Buffed!)
+  // Animal / Fantasy Creature Boss Specs (Balanced)
   const BOSS_SPECS = {
-    nyxia: { hp: 780, score: 3200, spd: 1.14, p1: '#ff9fd6', p2: '#ffe58f', meteors: 6, minions: ['slime', 'wisp'], wakeText: '✦ STARLIGHT AWAKENING ✦' },
-    zephyra: { hp: 880, score: 3800, spd: 1.24, p1: '#8ceeff', p2: '#ffe999', meteors: 6, minions: ['wisp', 'bomber'], wakeText: '✦ TEMPEST SERAPH ✦' },
-    morpheus: { hp: 960, score: 4400, spd: 1.28, p1: '#d29eff', p2: '#ff9fd6', meteors: 7, minions: ['shadow_dasher', 'wisp'], wakeText: '✦ MIDNIGHT CHIME ✦' },
-    glaciella: { hp: 1050, score: 5000, spd: 1.32, p1: '#a2f6ff', p2: '#d9c2ff', meteors: 7, minions: ['prism_turret', 'knight'], wakeText: '✦ SHATTERED MOON ✦' },
-    malakor: { hp: 1240, score: 6800, spd: 1.4, p1: '#ff6e96', p2: '#ffcf6b', meteors: 8, minions: ['shadow_dasher', 'prism_turret'], wakeText: '✦ ECLIPSE CATACLYSM ✦' }
+    nyxia: { hp: 780, score: 3200, spd: 1.02, p1: '#ff9fd6', p2: '#ffe58f', meteors: 4, minions: ['slime', 'wisp'], wakeText: '✦ STARLIGHT AWAKENING ✦' },
+    zephyra: { hp: 880, score: 3800, spd: 1.10, p1: '#8ceeff', p2: '#ffe999', meteors: 4, minions: ['wisp', 'bomber'], wakeText: '✦ TEMPEST SERAPH ✦' },
+    morpheus: { hp: 960, score: 4400, spd: 1.14, p1: '#d29eff', p2: '#ff9fd6', meteors: 5, minions: ['shadow_dasher', 'wisp'], wakeText: '✦ MIDNIGHT CHIME ✦' },
+    glaciella: { hp: 1050, score: 5000, spd: 1.18, p1: '#a2f6ff', p2: '#d9c2ff', meteors: 5, minions: ['prism_turret', 'knight'], wakeText: '✦ SHATTERED MOON ✦' },
+    malakor: { hp: 1240, score: 6800, spd: 1.22, p1: '#ff6e96', p2: '#ffcf6b', meteors: 5, minions: ['shadow_dasher', 'prism_turret'], wakeText: '✦ ECLIPSE CATACLYSM ✦' }
   };
 
-  // Human Final Boss Specs (Progressive S1 -> S5 escalation!)
+  // Human Final Boss Specs (Progressive S1 -> S5 escalation, tuned projectile density)
   const HUMAN_BOSS_SPECS = {
-    human_grandma: { hp: 960, score: 3000, spd: 1.20, wakeText: '✦ 阿嬤真正生氣囉！！ ✦', color: '#ffbae0' },
-    human_athlete: { hp: 1100, score: 3600, spd: 1.28, wakeText: '✦ 全力錦標賽模式！！ ✦', color: '#ffe58f' },
-    human_trader: { hp: 1240, score: 4200, spd: 1.35, wakeText: '✦ ALL-IN 漲停鎖死！！ ✦', color: '#ff6b78' },
-    human_engineer: { hp: 1380, score: 4800, spd: 1.41, wakeText: '✦ PRODUCTION DOWN！！ ✦', color: '#9cf5e3' },
-    human_jk: { hp: 1460, score: 6200, spd: 1.44, wakeText: '✦ 放學全力社團特訓＋快炒爆發！！ ✦', color: '#ff9fd6' }
+    human_grandma: { hp: 900, score: 3000, spd: 1.04, wakeText: '✦ 阿嬤真正生氣囉！！ ✦', color: '#ffbae0' },
+    human_athlete: { hp: 1020, score: 3600, spd: 1.10, wakeText: '✦ 全力錦標賽模式！！ ✦', color: '#ffe58f' },
+    human_trader: { hp: 1140, score: 4200, spd: 1.16, wakeText: '✦ ALL-IN 漲停鎖死！！ ✦', color: '#ff6b78' },
+    human_engineer: { hp: 1260, score: 4800, spd: 1.21, wakeText: '✦ PRODUCTION DOWN！！ ✦', color: '#9cf5e3' },
+    human_jk: { hp: 1380, score: 6200, spd: 1.26, wakeText: '✦ 放學全力社團特訓＋快炒爆發！！ ✦', color: '#ff9fd6' }
   };
 
   // Leaderboard API Endpoint (Cloudflare Workers + KV).

@@ -486,6 +486,39 @@ window.SR = window.SR || {};
       ctx.beginPath(); ctx.arc(0, 2, 11, Math.PI, 0); ctx.lineTo(11, 7); ctx.lineTo(-11, 7); ctx.closePath(); ctx.fill();
       ctx.strokeStyle = '#e0d2ba'; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(-4, -7); ctx.lineTo(0, -4); ctx.lineTo(4, -7); ctx.stroke();
+    } else if (foodType === 'rice_bowl') {
+      // 一碗香噴噴白飯 (Grandma's steaming bowl of white rice!)
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath(); ctx.arc(0, -1, 10.5, Math.PI, 0); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(220, 232, 245, 0.7)';
+      ctx.beginPath(); ctx.arc(-4, -5, 2.5, 0, Math.PI * 2); ctx.arc(3, -6, 2.2, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#f4f7ff';
+      ctx.beginPath(); ctx.arc(0, -1, 12, 0, Math.PI); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#6699e6'; ctx.lineWidth = 2.4;
+      ctx.beginPath(); ctx.moveTo(-11, 1); ctx.lineTo(11, 1); ctx.stroke();
+      ctx.fillStyle = '#cfd8ee'; SR.roundRect(ctx, -5, 9, 10, 3, 1.5); ctx.fill();
+    } else if (foodType === 'pork_belly') {
+      // 控肉 / 五花肉 (Grandma's glossy soy-braised layered pork belly!)
+      SR.roundRect(ctx, -12, -9, 24, 18, 5);
+      ctx.fillStyle = '#8c3b20'; ctx.fill();
+      ctx.fillStyle = '#b85c34'; ctx.fillRect(-11, -9, 22, 4.5); // Golden braised rind
+      ctx.fillStyle = '#fff0db'; ctx.fillRect(-11, -4.5, 22, 4.2); // Tender fat layer
+      ctx.fillStyle = '#a8472b'; ctx.fillRect(-11, -0.3, 22, 4.2); // Lean meat layer
+      ctx.fillStyle = '#f7e2c6'; ctx.fillRect(-11, 3.9, 22, 2.5);
+      ctx.strokeStyle = '#5c210e'; ctx.lineWidth = 1.6;
+      SR.roundRect(ctx, -12, -9, 24, 18, 5); ctx.stroke();
+      ctx.fillStyle = '#6fe89a'; ctx.fillRect(-4, -11, 8, 2.5); // Scallion garnish
+    } else if (foodType === 'pork_knuckle') {
+      // 滷豬腳 (Grandma's shiny mahogany braised pork knuckle slice!)
+      ctx.fillStyle = '#85331d';
+      ctx.beginPath(); ctx.ellipse(0, 0, 12.5, 10.5, 0.15, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#d97a4a'; ctx.lineWidth = 2.2; ctx.stroke();
+      ctx.fillStyle = '#b54d30';
+      ctx.beginPath(); ctx.ellipse(0, 0, 8.5, 6.8, 0.15, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#fff3e0';
+      ctx.beginPath(); ctx.arc(1, 0, 3.6, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255, 236, 200, 0.65)';
+      ctx.beginPath(); ctx.ellipse(-5, -4, 3.5, 1.6, -0.4, 0, Math.PI * 2); ctx.fill();
     } else {
       // 珍奶 (Boba Tea Cup!)
       ctx.fillStyle = '#f5cfa0'; SR.roundRect(ctx, -8, -9, 16, 18, 4); ctx.fill();

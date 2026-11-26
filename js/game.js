@@ -45,6 +45,7 @@ window.SR = window.SR || {};
       this.deflectScoredCount = 0;
       this.runFinalized = false;
       this.checkpointSnapshot = { score: 0, kills: 0 };
+      this.collectedPickupIds = new Set();
       this.bossVictoryTimeout = null;
       // 2D Adventure Map Node Coordinates (560x356 Fantasy Continent & Volcanic Isle!)
       this.mapNodes = [
@@ -413,6 +414,7 @@ window.SR = window.SR || {};
         slotSkill: $('slot-skill'),
         slotSkillMask: $('slot-skill-mask'),
         slotSkillCd: $('slot-skill-cd'),
+        slotSkillCharges: $('slot-skill-charges'),
         slotUlt: $('slot-ult'),
         slotUltMask: $('slot-ult-mask'),
         slotUltCd: $('slot-ult-cd'),
@@ -872,10 +874,20 @@ window.SR = window.SR || {};
       if (SR.weather) SR.weather.reset(this.level.meta);
 
       this.spawnPoint = prevSpawn;
+      if (!effectiveFromCp) {
+        this.collectedPickupIds = new Set();
+      } else {
+        // Prevent checkpoint death/respawn backtracking from farming stars/hearts already passed!
+        for (const pk of this.level.pickups) {
+          if (this.collectedPickupIds.has(pk.id) || pk.x < this.spawnPoint.x) {
+            pk.collected = true;
+          }
+        }
+      }
       this.player = new SR.Player(charId, this.spawnPoint.x, this.spawnPoint.y);
 
       this.enemies = this.level.enemySpawns
-        .filter((sp) => !effectiveFromCp || sp.x >= this.spawnPoint.x - 160)
+        .filter((sp) => !effectiveFromCp || sp.x >= this.spawnPoint.x)
         .map((sp) => new SR.Enemy(sp, this.level.meta));
 
       this.playerProjectiles = [];
@@ -1037,7 +1049,14 @@ window.SR = window.SR || {};
       } else if (e.isBossSummon) {
         SR.particles.spawnText(e.cx, e.y - 16, '增援擊破', '#9cf5e3', 0.9);
       }
-      if (this.player && this.player.hp < this.player.maxHp && Math.random() < 0.32) {
+      if (e.isElite) {
+        // Every defeated mini-boss (wild or boss-summoned!) guarantees an HP healing heart drop!
+        this.level.pickups.push({
+          id: SR.nextEntityId(), x: e.cx, y: Math.min(e.y + e.h - 22, 553),
+          kind: 'heart', collected: false, bobPhase: 0
+        });
+        SR.particles.spawnText(e.cx, e.y - 34, '♥ 掉落回復愛心！', '#ff9fd6', 0.98);
+      } else if (this.player && this.player.hp < this.player.maxHp && Math.random() < 0.32) {
         this.level.pickups.push({
           id: SR.nextEntityId(), x: e.cx, y: e.cy,
           kind: 'heart', collected: false, bobPhase: 0
@@ -1216,6 +1235,7 @@ window.SR = window.SR || {};
         if (pk.collected) continue;
         if (Math.hypot(p.cx - pk.x, p.cy - pk.y) < 34) {
           pk.collected = true;
+          this.collectedPickupIds.add(pk.id);
           if (pk.kind === 'heart') {
             p.hp = Math.min(p.maxHp, p.hp + 2);
             SR.audio.pickup(true);
@@ -1410,9 +1430,9 @@ window.SR = window.SR || {};
         this.el.hearts.innerHTML = heartsHtml;
       }
 
-      this.updateCircularSlot(
-        this.el.slotSkill, this.el.slotSkillMask, this.el.slotSkillCd,
-        this.player.skillTimer, this.player.def.skillCooldown
+      this.updateSkillChargeSlot(
+        this.el.slotSkill, this.el.slotSkillMask, this.el.slotSkillCd, this.el.slotSkillCharges,
+        this.player.skillCharges, this.player.skillMaxCharges, this.player.skillTimer, this.player.def.skillCooldown
       );
       this.updateCircularSlot(
         this.el.slotUlt, this.el.slotUltMask, this.el.slotUltCd,
@@ -1436,6 +1456,35 @@ window.SR = window.SR || {};
         const bpct = Math.max(0, (this.activeBoss.hp / this.activeBoss.maxHp) * 100);
         this.el.bossHpFill.style.width = `${bpct}%`;
         this.el.bossPhaseTag.textContent = this.activeBoss.phase === 2 ? 'Phase II ✦' : 'Phase I';
+      }
+    }
+
+    updateSkillChargeSlot(slotEl, maskEl, cdTextEl, chargeEl, charges, maxCharges, timer, maxCd) {
+      if (!slotEl || !maskEl || !cdTextEl) return;
+      if (chargeEl) {
+        chargeEl.textContent = String(charges);
+        chargeEl.classList.toggle('empty', charges <= 0);
+      }
+      if (charges >= maxCharges) {
+        slotEl.classList.remove('on-cd');
+        slotEl.classList.add('ready');
+        maskEl.style.background = 'none';
+        cdTextEl.classList.add('hidden');
+      } else if (charges > 0) {
+        const remFrac = SR.clamp(timer / maxCd, 0, 1);
+        const deg = Math.round(remFrac * 360);
+        slotEl.classList.remove('on-cd');
+        slotEl.classList.add('ready');
+        maskEl.style.background = `conic-gradient(rgba(10, 6, 26, 0.36) 0deg ${deg}deg, transparent ${deg}deg 360deg)`;
+        cdTextEl.classList.add('hidden');
+      } else {
+        const remFrac = SR.clamp(timer / maxCd, 0, 1);
+        const deg = Math.round(remFrac * 360);
+        slotEl.classList.add('on-cd');
+        slotEl.classList.remove('ready');
+        maskEl.style.background = `conic-gradient(rgba(10, 6, 26, 0.78) 0deg ${deg}deg, transparent ${deg}deg 360deg)`;
+        cdTextEl.textContent = timer >= 10 ? Math.ceil(timer) : timer.toFixed(1);
+        cdTextEl.classList.remove('hidden');
       }
     }
 
