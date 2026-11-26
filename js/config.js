@@ -172,7 +172,7 @@ window.SR = window.SR || {};
   // Leaderboard API Endpoint (Cloudflare Workers + KV).
   // Leave empty ('') for offline/local-only High Scores mode; set your deployed Worker URL
   // (e.g. 'https://starlight-reverie-lb.<your-subdomain>.workers.dev') to enable the Global Leaderboard!
-  const LEADERBOARD_API_URL = '';
+  const LEADERBOARD_API_URL = 'https://starlight-reverie-lb.muskyhuang.workers.dev';
 
   SR.VIEW_W = VIEW_W;
   SR.VIEW_H = VIEW_H;

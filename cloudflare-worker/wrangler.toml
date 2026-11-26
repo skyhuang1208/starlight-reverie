@@ -10,4 +10,4 @@ ALLOWED_ORIGINS = "https://skyhuang1208.github.io"
 # then paste its ID below (or bind it directly in the Cloudflare Dashboard UI):
 [[kv_namespaces]]
 binding = "LEADERBOARD_KV"
-id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+id = "5e47f93abb034be8b086fb78d705dd0c"
