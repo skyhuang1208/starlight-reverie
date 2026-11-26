@@ -594,9 +594,10 @@ window.SR = window.SR || {};
       this.moveGround(dt, level);
     },
 
-    // 小頭目 #3: 滑板柯基 (Skateboarding Corgi)
+    // 小頭目 #3: 滑板柯基 (Skateboarding Corgi — Skate Tricks + Bark Sound Wave!)
     corgi_skater(dt, player, dx, dy, dist, level, game) {
       if (this.dashCd > 0) this.dashCd -= dt;
+      if (this.barkCd > 0) this.barkCd -= dt;
       this.stateTimer -= dt;
 
       if (this.state === 'patrol') {
@@ -611,6 +612,36 @@ window.SR = window.SR || {};
           this.vx = 0;
           this.trickCount++;
           SR.particles.spawnText(this.cx, this.y - 16, this.trickCount % 2 === 1 ? 'OLLIE! 🛹' : '滑板衝刺！', '#ffe58f', 0.92);
+        } else if (this.barkCd <= 0 && dist < 500 && Math.abs(dy) < 190) {
+          this.state = 'bark_windup';
+          this.stateTimer = 0.28;
+          this.vx = 0;
+          this.facing = dx >= 0 ? 1 : -1;
+        }
+      } else if (this.state === 'bark_windup') {
+        this.vx = 0;
+        this.facing = dx >= 0 ? 1 : -1;
+        if (this.stateTimer <= 0) {
+          const ang = Math.atan2(player.cy - this.cy, player.cx - this.cx);
+          const spd = 400 * this.spdScale;
+          game.enemyProjectiles.push({
+            kind: 'bark_wave',
+            x: this.cx + this.facing * 20,
+            y: this.cy - 6,
+            vx: Math.cos(ang) * spd,
+            vy: Math.sin(ang) * spd,
+            r: 17,
+            life: 1.45,
+            color: '#ffe58f',
+            pushForce: 540,
+            pushLift: -200,
+            deflectable: true
+          });
+          if (SR.audio.bark) SR.audio.bark();
+          SR.particles.spawnRing(this.cx + this.facing * 18, this.cy - 6, '#ffe58f', 40, 0.25);
+          SR.particles.spawnText(this.cx + this.facing * 16, this.y - 20, '汪！！', '#ffe894', 1.15);
+          this.state = 'patrol';
+          this.barkCd = 2.1 / this.spdScale;
         }
       } else if (this.state === 'kickflip_windup') {
         this.vx = 0;

@@ -1055,7 +1055,6 @@ window.SR = window.SR || {};
           id: SR.nextEntityId(), x: e.cx, y: Math.min(e.y + e.h - 22, 553),
           kind: 'heart', collected: false, bobPhase: 0
         });
-        SR.particles.spawnText(e.cx, e.y - 34, '♥ 掉落回復愛心！', '#ff9fd6', 0.98);
       } else if (this.player && this.player.hp < this.player.maxHp && Math.random() < 0.32) {
         this.level.pickups.push({
           id: SR.nextEntityId(), x: e.cx, y: e.cy,
