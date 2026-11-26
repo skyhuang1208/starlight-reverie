@@ -93,6 +93,7 @@ window.SR = window.SR || {};
       this.stateTimer = 0.45 + Math.random() * 0.75;
       this.animTime = Math.random() * 6;
       this.hitFlash = 0;
+      this.chillTimer = 0;
       this.dead = false;
       this.isBoss = false;
       this.onGround = false;
@@ -149,6 +150,8 @@ window.SR = window.SR || {};
     update(dt, player, level, game) {
       this.animTime += dt;
       if (this.hitFlash > 0) this.hitFlash -= dt;
+      if (this.chillTimer > 0) this.chillTimer -= dt;
+      const effDt = this.chillTimer > 0 ? dt * 0.52 : dt;
 
       const dx = player.cx - this.cx;
       const dy = player.cy - this.cy;
@@ -156,7 +159,7 @@ window.SR = window.SR || {};
       if (dist > 980) return;
 
       const fn = ENEMY_AI[this.type];
-      if (fn) fn.call(this, dt, player, dx, dy, dist, level, game);
+      if (fn) fn.call(this, effDt, player, dx, dy, dist, level, game);
     }
 
     moveGround(dt, level) {
@@ -227,7 +230,7 @@ window.SR = window.SR || {};
           this.stateTimer = 0.9;
         }
       } else if (this.state === 'leap') {
-        if (this.onGround && this.vy >= 0) {
+        if ((this.onGround && this.vy >= 0) || this.stateTimer <= 0) {
           this.state = 'patrol';
           this.stateTimer = 1.0 / this.spdScale;
           this.vx = 0;
@@ -300,9 +303,9 @@ window.SR = window.SR || {};
 
       this.stateTimer -= dt;
       if (this.state === 'patrol' && dist < 520 && this.stateTimer <= 0) {
-        this.state = 'charge';
+        this.state = 'aim_charge';
         this.stateTimer = 0.6 / this.spdScale;
-      } else if (this.state === 'charge' && this.stateTimer <= 0) {
+      } else if (this.state === 'aim_charge' && this.stateTimer <= 0) {
         const ang = Math.atan2(player.cy - this.cy, player.cx - this.cx);
         game.enemyProjectiles.push({
           kind: 'orb', x: this.cx, y: this.cy,
@@ -347,9 +350,9 @@ window.SR = window.SR || {};
       this.stateTimer -= dt;
       this.vx *= 0.85;
       if (this.state === 'patrol' && dist < 560 && this.stateTimer <= 0) {
-        this.state = 'charge';
+        this.state = 'aim_charge';
         this.stateTimer = 0.72 / this.spdScale;
-      } else if (this.state === 'charge' && this.stateTimer <= 0) {
+      } else if (this.state === 'aim_charge' && this.stateTimer <= 0) {
         const base = Math.atan2(player.cy - this.cy, player.cx - this.cx);
         [-0.32, 0, 0.32].forEach((off) => {
           const ang = base + off;
@@ -633,7 +636,7 @@ window.SR = window.SR || {};
         }
       } else if (this.state === 'ollie_air') {
         this.boardSpin += dt * 16;
-        if (this.onGround && this.vy >= 0) {
+        if ((this.onGround && this.vy >= 0) || this.stateTimer <= 0) {
           this.boardSpin = 0;
           SR.audio.hit(true);
           SR.particles.spawnRing(this.cx, this.y + this.h, '#ffe58f', 64, 0.3);

@@ -58,57 +58,57 @@ window.SR = window.SR || {};
       name: 'Lyra',
       role: 'Star Blade',
       maxHp: 6,
-      speed: 355,
+      speed: 358,
       jumpVel: -725,
       doubleJumpVel: -670,
       gravity: 1560,
       slideSpeed: 620,
       slideDuration: 0.52,
-      attackCooldown: 0.24,
-      skillCooldown: 6.0,
+      attackCooldown: 0.23,
+      skillCooldown: 3.2,
       ultimateCooldown: 15.0,
       primaryColor: '#8be4ff',
       secondaryColor: '#fff0b3',
       accentColor: '#ff9fd6',
-      actionIcons: { b: '⚔️', s: '🌀', sName: 'Cyclone', u: '☄️', uName: 'Starfall' }
+      actionIcons: { b: '⚔️', s: '🗡️', sName: 'Blade Surge', u: '☄️', uName: 'Starfall' }
     },
     gun: {
       id: 'gun',
       name: 'Pip',
       role: 'Prism Gun',
       maxHp: 6,
-      speed: 340,
+      speed: 342,
       jumpVel: -665,
       doubleJumpVel: -615,
       gravity: 1550,
       slideSpeed: 595,
       slideDuration: 0.50,
-      attackCooldown: 0.19,
-      skillCooldown: 4.5,
+      attackCooldown: 0.195,
+      skillCooldown: 3.6,
       ultimateCooldown: 15.0,
       primaryColor: '#ffbfa0',
       secondaryColor: '#ffe58f',
       accentColor: '#ff96ce',
-      actionIcons: { b: '🔫', s: '💠', sName: 'Silver Fan', u: '⚡', uName: 'Hypernova' }
+      actionIcons: { b: '🔫', s: '🌟', sName: 'Gold Volley', u: '☄️', uName: 'Solar Nova' }
     },
     magic: {
       id: 'magic',
       name: 'Luna',
       role: 'Dream Magic',
       maxHp: 6,
-      speed: 332,
+      speed: 335,
       jumpVel: -635,
       doubleJumpVel: -605,
       gravity: 1340,
       slideSpeed: 565,
       slideDuration: 0.52,
-      attackCooldown: 0.285,
-      skillCooldown: 5.2,
+      attackCooldown: 0.27,
+      skillCooldown: 4.2,
       ultimateCooldown: 15.0,
       primaryColor: '#d1a8ff',
       secondaryColor: '#9cf5e3',
       accentColor: '#ffaae0',
-      actionIcons: { b: '✨', s: '🔥', sName: 'Elem Ring', u: '🌟', uName: 'Supernova' }
+      actionIcons: { b: '🔥', s: '❄️', sName: 'Ice Volley', u: '⚡', uName: 'Thunderbolt' }
     }
   };
 
@@ -169,8 +169,14 @@ window.SR = window.SR || {};
     human_jk: { hp: 1380, score: 6200, spd: 1.42, wakeText: '✦ 放學全力社團特訓＋快炒爆發！！ ✦', color: '#ff9fd6' }
   };
 
+  // Leaderboard API Endpoint (Cloudflare Workers + KV).
+  // Leave empty ('') for offline/local-only High Scores mode; set your deployed Worker URL
+  // (e.g. 'https://starlight-reverie-lb.<your-subdomain>.workers.dev') to enable the Global Leaderboard!
+  const LEADERBOARD_API_URL = '';
+
   SR.VIEW_W = VIEW_W;
   SR.VIEW_H = VIEW_H;
+  SR.LEADERBOARD_API_URL = LEADERBOARD_API_URL;
   SR.nextEntityId = nextEntityId;
   SR.resetEntityIds = resetEntityIds;
   SR.aabb = aabb;

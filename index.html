@@ -50,6 +50,10 @@
 
       <div class="hud-right">
         <div class="hud-right-top">
+          <div id="hud-player-pill" class="hud-player-pill" title="Player Name · 玩家暱稱">
+            <span class="hud-player-icon">✦</span>
+            <span id="hud-player-name">Dreamer</span>
+          </div>
           <div class="stats-pill">
             <span class="stat-item"><span class="star-icon">✦</span> <span id="hud-score">0</span></span>
             <span class="stat-divider"></span>
@@ -111,7 +115,18 @@
       <div class="menu-card">
         <div class="menu-header-row">
           <div class="title-block">
-            <div class="eyebrow">✦ 5-STAGE DREAMLAND ADVENTURE ✦</div>
+            <div class="title-eyebrow-row">
+              <div class="eyebrow">✦ 5-STAGE DREAMLAND ADVENTURE ✦</div>
+              <button id="btn-edit-name" class="player-name-pill" type="button" title="Click to change player name · 點擊更改暱稱">
+                <span class="player-pill-icon">👤</span>
+                <span id="menu-player-name">Dreamer</span>
+                <span class="player-pill-edit">✎</span>
+              </button>
+              <button id="btn-open-leaderboard" class="lb-trigger-pill" type="button" title="View Top Scores · 查看排行榜">
+                <span>🏆</span>
+                <span>Leaderboard · 排行榜</span>
+              </button>
+            </div>
             <h1 class="game-title">Starlight Reverie · 夢光幻境</h1>
           </div>
 
@@ -166,6 +181,8 @@
               <button type="button" class="stage-dot-btn dot-hell" data-map="4">5</button>
             </div>
 
+            <div id="dossier-mode-tag" class="dossier-mode-tag">🏆 Ranked: Full Campaign (Stages 1→5) · 全程積分賽</div>
+
             <button id="btn-start" class="primary-btn dossier-start-btn" type="button">
               <span>Enter Dreamland</span>
               <span class="btn-sparkle">✦</span>
@@ -174,57 +191,132 @@
         </div>
 
         <!-- BOTTOM ROW: 3 Playable Characters (Left: Wizard Beginner, Middle: Shooter Intermediate, Right: Warrior Advanced) -->
-        <div class="char-select-grid" id="char-select-grid">
-          <button class="char-card selected" data-char="magic" type="button">
-            <div class="diff-badge diff-beginner">Beginner · 新手</div>
-            <div class="char-card-body">
-              <div class="char-preview-wrap">
-                <canvas class="char-preview" data-preview="magic" width="96" height="82"></canvas>
-              </div>
-              <div class="char-card-info">
-                <div class="char-card-header">
-                  <h3>Luna</h3>
-                  <span class="weapon-tag tag-magic">法師</span>
-                </div>
-                <p class="char-desc"><b>3 Elemental Bolts</b> (🔥 Fire · ❄️ Ice · ⚡ Lightning) with homing splash!</p>
-                <div class="skill-hint"><b>[2/RMB]</b> Elem Ring · <b>[3/Q]</b> Supernova</div>
-              </div>
+        <div class="char-select-section">
+          <div class="char-select-header">
+            <div class="char-select-title">
+              <span class="char-select-spark">✦</span>
+              <span>Choose Your Hero</span>
+              <span class="char-select-zh">· 選擇出戰英雄</span>
             </div>
-          </button>
+            <div class="char-select-hint">
+              <span id="selected-hero-pill" class="selected-hero-pill">Active: Luna · 法師</span>
+              <span class="hero-key-hint">Click card or ← / →</span>
+            </div>
+          </div>
 
-          <button class="char-card" data-char="gun" type="button">
-            <div class="diff-badge diff-intermediate">Intermediate · 進階</div>
-            <div class="char-card-body">
-              <div class="char-preview-wrap">
-                <canvas class="char-preview" data-preview="gun" width="96" height="82"></canvas>
-              </div>
-              <div class="char-card-info">
-                <div class="char-card-header">
-                  <h3>Pip</h3>
-                  <span class="weapon-tag tag-gun">射手</span>
+          <div class="char-select-grid" id="char-select-grid">
+            <button class="char-card selected" data-char="magic" type="button">
+              <span class="selected-ribbon">✦ SELECTED</span>
+              <div class="diff-badge diff-beginner">Beginner · 新手</div>
+              <div class="char-card-body">
+                <div class="char-preview-wrap">
+                  <canvas class="char-preview" data-preview="magic" width="96" height="82"></canvas>
                 </div>
-                <p class="char-desc"><b>5 silver bullets</b> (±45°)! Hold <b>W/↑</b> to shoot straight UP!</p>
-                <div class="skill-hint"><b>[2/RMB]</b> Silver Fan · <b>[3/Q]</b> Hypernova</div>
+                <div class="char-card-info">
+                  <div class="char-card-header">
+                    <h3>Luna</h3>
+                    <span class="weapon-tag tag-magic">法師</span>
+                  </div>
+                  <p class="char-desc">Aimed <b>🔥 Fire Bolts</b> with homing splash, piercing <b>❄️ Ice</b> &amp; <b>⚡ Lightning</b>!</p>
+                  <div class="skill-hint"><b>[2/RMB]</b> ❄️ Ice Volley · <b>[3/Q]</b> ⚡ Thunderbolt</div>
+                </div>
               </div>
-            </div>
-          </button>
+            </button>
 
-          <button class="char-card" data-char="blade" type="button">
-            <div class="diff-badge diff-advanced">Advanced · 高手</div>
-            <div class="char-card-body">
-              <div class="char-preview-wrap">
-                <canvas class="char-preview" data-preview="blade" width="96" height="82"></canvas>
-              </div>
-              <div class="char-card-info">
-                <div class="char-card-header">
-                  <h3>Lyra</h3>
-                  <span class="weapon-tag tag-blade">戰士</span>
+            <button class="char-card" data-char="gun" type="button">
+              <span class="selected-ribbon">✦ SELECTED</span>
+              <div class="diff-badge diff-intermediate">Intermediate · 進階</div>
+              <div class="char-card-body">
+                <div class="char-preview-wrap">
+                  <canvas class="char-preview" data-preview="gun" width="96" height="82"></canvas>
                 </div>
-                <p class="char-desc">Blue-white <b>劍氣</b> waves &amp; celestial swords + <b>2-jump Air-Slice</b>!</p>
-                <div class="skill-hint"><b>[2/RMB]</b> Cyclone · <b>[3/Q]</b> Starfall</div>
+                <div class="char-card-info">
+                  <div class="char-card-header">
+                    <h3>Pip</h3>
+                    <span class="weapon-tag tag-gun">射手</span>
+                  </div>
+                  <p class="char-desc">Tight <b>30° 3-bullet silver burst</b> + piercing <b>Golden</b> Skill &amp; Ult!</p>
+                  <div class="skill-hint"><b>[2/RMB]</b> 🌟 Gold Volley · <b>[3/Q]</b> ☄️ Solar Nova</div>
+                </div>
               </div>
-            </div>
-          </button>
+            </button>
+
+            <button class="char-card" data-char="blade" type="button">
+              <span class="selected-ribbon">✦ SELECTED</span>
+              <div class="diff-badge diff-advanced">Advanced · 高手</div>
+              <div class="char-card-body">
+                <div class="char-preview-wrap">
+                  <canvas class="char-preview" data-preview="blade" width="96" height="82"></canvas>
+                </div>
+                <div class="char-card-info">
+                  <div class="char-card-header">
+                    <h3>Lyra</h3>
+                    <span class="weapon-tag tag-blade">戰士</span>
+                  </div>
+                  <p class="char-desc">Directional <b>Blade Surge</b> blocks front shots &amp; fires <b>劍氣</b> at end!</p>
+                  <div class="skill-hint"><b>[2/RMB]</b> 🗡️ Blade Surge · <b>[3/Q]</b> ☄️ Starfall</div>
+                </div>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Player Name Registration Pop-up (Shown on first entry & editable from menu) -->
+    <div id="name-overlay" class="overlay name-overlay hidden">
+      <div class="modal-card name-modal-card">
+        <h2>Enter Your Name</h2>
+        <div class="name-modal-zh">輸入玩家暱稱</div>
+        <form id="name-form" class="name-form" autocomplete="off">
+          <input
+            type="text"
+            id="player-name-input"
+            class="name-input"
+            maxlength="18"
+            placeholder="e.g. Sky, StarKnight, 小光..."
+            aria-label="Player Name"
+          />
+          <div id="name-error" class="name-error hidden">Please enter a name or choose Guest · 請輸入暱稱或選擇訪客</div>
+          <div class="modal-actions name-modal-actions">
+            <button id="btn-name-confirm" class="primary-btn" type="submit">Confirm · 確認 ✦</button>
+            <button id="btn-name-skip" class="ghost-btn" type="button">Play as Guest · 訪客遊玩</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Full Leaderboard Overlay (Menu) -->
+    <div id="leaderboard-overlay" class="overlay name-overlay hidden">
+      <div class="modal-card lb-modal-card">
+        <div class="lb-modal-header">
+          <div>
+            <div class="eyebrow">✦ HALL OF STARLIGHT · 夢光英雄榜 ✦</div>
+            <h2>Leaderboard · 排行榜</h2>
+          </div>
+          <div class="lb-header-right">
+            <span id="lb-mode-badge" class="pill lb-mode-pill">💾 Local</span>
+            <button id="btn-lb-refresh" class="icon-btn lb-refresh-btn" type="button" title="Refresh · 重新整理">↻</button>
+            <button id="btn-lb-reset" class="icon-btn lb-refresh-btn" type="button" title="Admin Reset Leaderboard · 重置排行榜">🗑</button>
+          </div>
+        </div>
+        <div class="lb-tabs" id="lb-tabs" role="tablist">
+          <button type="button" class="lb-tab-btn active" data-board="stage_1">Stage 1</button>
+          <button type="button" class="lb-tab-btn" data-board="stage_2">Stage 2</button>
+          <button type="button" class="lb-tab-btn" data-board="stage_3">Stage 3</button>
+          <button type="button" class="lb-tab-btn" data-board="stage_4">Stage 4</button>
+          <button type="button" class="lb-tab-btn" data-board="stage_5">Stage 5</button>
+          <button type="button" class="lb-tab-btn lb-tab-campaign" data-board="campaign">🏆 5-Stage · 五關總榜</button>
+        </div>
+        <div class="lb-char-tabs" id="lb-char-tabs" role="tablist">
+          <button type="button" class="lb-char-btn active" data-char="all">✦ All · 全部</button>
+          <button type="button" class="lb-char-btn" data-char="magic">✨ Luna · 法師</button>
+          <button type="button" class="lb-char-btn" data-char="gun">🔫 Pip · 射手</button>
+          <button type="button" class="lb-char-btn" data-char="blade">⚔️ Lyra · 戰士</button>
+        </div>
+        <div id="lb-list" class="lb-list"></div>
+        <div class="modal-actions">
+          <button id="btn-lb-close" class="primary-btn" type="button">Close · 關閉</button>
         </div>
       </div>
     </div>
@@ -238,33 +330,31 @@
 
         <div class="instr-grid">
           <div class="instr-box">
-            <h4>🖱️ Style A · WASD + Mouse</h4>
+            <h4>🖱️ Style A · WASD + Mouse (360° Aim)</h4>
             <ul>
               <li><b>A / D</b> — Move Left / Right</li>
               <li><b>W / Space</b> — Jump &amp; Double Jump</li>
               <li><b>S / Shift</b> — Slide / Drop Bar</li>
-              <li><b>Left Click</b> — Normal Attack (No CD)</li>
-              <li><b>Right Click</b> — Skill (CD)</li>
-              <li><b>Q</b> — Ultimate Skill (15s CD)</li>
+              <li><b>Mouse Pointer</b> — Aim 360° Direction!</li>
+              <li><b>LMB / RMB / Q</b> — Attack / Skill / Ult</li>
             </ul>
           </div>
           <div class="instr-box">
-            <h4>⌨️ Style B · Arrows + 1 / 2 / 3</h4>
+            <h4>⌨️ Style B · Arrows + 1 / 2 / 3 (0° / 90° Aim)</h4>
             <ul>
-              <li><b>← / →</b> — Move Left / Right</li>
-              <li><b>↑ / Space</b> — Jump &amp; Double Jump</li>
-              <li><b>↓ / Shift</b> — Slide / Drop Bar</li>
-              <li><b>1</b> — Normal Attack (No CD)</li>
-              <li><b>2</b> — Skill (CD)</li>
-              <li><b>3</b> — Ultimate Skill (15s CD)</li>
+              <li><b>← / →</b> — Move &amp; Aim Left / Right (0°)</li>
+              <li><b>↑ / ↓ (air)</b> — Hold to Aim Straight Up / Down (90°)</li>
+              <li><b>Space</b> — Jump &amp; Double Jump</li>
+              <li><b>Shift / ↓</b> — Slide / Drop Bar</li>
+              <li><b>1 / 2 / 3</b> — Attack / Skill / Ult</li>
             </ul>
           </div>
         </div>
 
         <div class="instr-tips">
-          <span>⚡ Dodge tracking thunderclouds (1s charge)!</span>
-          <span>🔫 Pip: Hold <b>W / ↑</b> to shoot Attack, Skill &amp; Ultimate straight UP!</span>
-          <span>⚔️ Lyra: Double-Jump + Attack for 30° Air-Slice!</span>
+          <span>🔥 Luna: Fire Attack · ❄️ Ice Skill · ⚡ Lightning Ult!</span>
+          <span>🌟 Pip: 30° Silver Burst + Piercing Golden Skill &amp; Ult!</span>
+          <span>🗡️ Lyra: Blade Surge cuts &amp; blocks frontal shots, then fires 劍氣!</span>
         </div>
 
         <div class="modal-actions">
@@ -286,61 +376,110 @@
       </div>
     </div>
 
-    <!-- Automatic Stage Transition Overlay (Stages 1 -> 4 clear) -->
+    <!-- Stage Clear Overlay (Stages 1 -> 4 clear — No Auto-Skip Countdown + Direct Leaderboard!) -->
     <div id="transition-overlay" class="overlay hidden">
-      <div class="modal-card transition-card">
-        <div class="eyebrow" id="trans-eyebrow">✦ STAGE 1 / 5 CLEARED ✦</div>
-        <h2 id="trans-title">Dreamlight Meadow Cleared!</h2>
-        <div class="victory-rank" id="trans-rank">★★★</div>
-        <div class="result-stats" id="trans-stats"></div>
-        <div class="next-realm-box">
-          <span class="next-label">ENTERING NEXT REALM IN <b id="trans-countdown">3.5</b>s</span>
-          <div class="next-realm-name" id="trans-next-name">Stage 2 · Whispering Cloudspire</div>
-          <div class="next-realm-sub" id="trans-next-sub">雲穹秘境 · ★★☆☆☆</div>
-          <div class="trans-bar-track">
-            <div id="trans-bar-fill" class="trans-bar-fill"></div>
+      <div class="modal-card result-split-card">
+        <div class="result-left">
+          <div class="eyebrow" id="trans-eyebrow">✦ STAGE 1 / 5 CLEARED ✦</div>
+          <h2 id="trans-title">Dreamlight Meadow Cleared!</h2>
+          <div class="victory-rank" id="trans-rank">★★★</div>
+          <div class="result-stats" id="trans-stats"></div>
+          <div id="trans-lb-status" class="lb-status-pill hidden"></div>
+          <div class="next-realm-box">
+            <span class="next-label">NEXT REALM · 下一關</span>
+            <div class="next-realm-name" id="trans-next-name">Stage 2 · Whispering Cloudspire</div>
+            <div class="next-realm-sub" id="trans-next-sub">雲穹秘境 · ★★☆☆☆</div>
+          </div>
+          <div class="modal-actions">
+            <button id="btn-trans-now" class="primary-btn" type="button">Next Stage · 前往下一關 ✦</button>
+            <button id="btn-trans-menu" class="ghost-btn" type="button">Back to Menu · 返回主選單</button>
           </div>
         </div>
-        <div class="modal-actions trans-actions">
-          <button id="btn-trans-now" class="primary-btn" type="button">Continue Now ✦</button>
-          <button id="btn-trans-menu" class="ghost-btn" type="button">Back to Menu</button>
+
+        <div class="result-lb-panel" data-lb-panel="trans">
+          <div class="embed-lb-header">
+            <div class="embed-lb-title" id="trans-lb-title">Stage 1 Leaderboard</div>
+            <button type="button" class="embed-lb-switch" data-lb-toggle="trans">🏆 5-Stage · 五關總榜</button>
+          </div>
+          <div class="lb-char-tabs embed-char-tabs" data-lb-chars="trans">
+            <button type="button" class="lb-char-btn active" data-char="all">✦ All</button>
+            <button type="button" class="lb-char-btn" data-char="magic">✨ Luna</button>
+            <button type="button" class="lb-char-btn" data-char="gun">🔫 Pip</button>
+            <button type="button" class="lb-char-btn" data-char="blade">⚔️ Lyra</button>
+          </div>
+          <div id="trans-lb-list" class="lb-list embed-lb-list"></div>
         </div>
       </div>
     </div>
 
-    <!-- Game Over Overlay -->
+    <!-- Game Over Overlay (Direct Leaderboard on Death!) -->
     <div id="gameover-overlay" class="overlay hidden">
-      <div class="modal-card">
-        <div class="eyebrow">✦ DREAM INTERRUPTED ✦</div>
-        <h2>Faded into Mist</h2>
-        <p class="modal-sub" id="gameover-msg">Your starlight dimmed, but the dream awaits your return.</p>
-        <div class="result-stats" id="gameover-stats"></div>
-        <div class="modal-actions">
-          <button id="btn-retry-cp" class="primary-btn" type="button">Retry Checkpoint ✦</button>
-          <button id="btn-retry-full" class="secondary-btn" type="button">Restart Stage</button>
-          <button id="btn-gameover-menu" class="ghost-btn" type="button">Change Character / Stage</button>
+      <div class="modal-card result-split-card">
+        <div class="result-left">
+          <div class="eyebrow">✦ DREAM INTERRUPTED ✦</div>
+          <h2>Faded into Mist</h2>
+          <p class="modal-sub" id="gameover-msg">Retry Checkpoint (-500 pts) keeps your continuous run going, or restart fresh!</p>
+          <div class="result-stats" id="gameover-stats"></div>
+          <div id="gameover-lb-status" class="lb-status-pill hidden"></div>
+          <div class="modal-actions">
+            <button id="btn-retry-cp" class="primary-btn" type="button">Retry Checkpoint (-500 pts) ✦</button>
+            <button id="btn-retry-full" class="secondary-btn" type="button">Restart Stage · 重新本關</button>
+            <button id="btn-gameover-menu" class="ghost-btn" type="button">Change Character / Stage · 返回選單</button>
+          </div>
+        </div>
+
+        <div class="result-lb-panel" data-lb-panel="gameover">
+          <div class="embed-lb-header">
+            <div class="embed-lb-title" id="gameover-lb-title">Stage 1 Leaderboard</div>
+            <button type="button" class="embed-lb-switch" data-lb-toggle="gameover">🏆 5-Stage · 五關總榜</button>
+          </div>
+          <div class="lb-char-tabs embed-char-tabs" data-lb-chars="gameover">
+            <button type="button" class="lb-char-btn active" data-char="all">✦ All</button>
+            <button type="button" class="lb-char-btn" data-char="magic">✨ Luna</button>
+            <button type="button" class="lb-char-btn" data-char="gun">🔫 Pip</button>
+            <button type="button" class="lb-char-btn" data-char="blade">⚔️ Lyra</button>
+          </div>
+          <div id="gameover-lb-list" class="lb-list embed-lb-list"></div>
         </div>
       </div>
     </div>
 
-    <!-- Grand Victory Overlay (Stage 5 Clear) -->
+    <!-- Grand Victory Overlay (Stage 5 Clear + Direct Leaderboard!) -->
     <div id="victory-overlay" class="overlay hidden">
-      <div class="modal-card victory-card">
-        <div class="eyebrow" id="victory-eyebrow">✦ ALL 5 REALMS CONQUERED ✦</div>
-        <h2 id="victory-title">Dreamland Saved!</h2>
-        <p class="modal-sub" id="victory-sub">You cleared all 5 realms from Pastel Meadow to Crimson Dream-Hell!</p>
-        <div class="victory-rank" id="victory-rank">★★★</div>
-        <div class="result-stats" id="victory-stats"></div>
-        <div class="modal-actions">
-          <button id="btn-next-stage" class="primary-btn hidden" type="button">Next Stage ✦</button>
-          <button id="btn-play-again" class="primary-btn" type="button">Replay Stage</button>
-          <button id="btn-victory-menu" class="ghost-btn" type="button">Character &amp; Map Select</button>
+      <div class="modal-card result-split-card">
+        <div class="result-left">
+          <div class="eyebrow" id="victory-eyebrow">✦ ALL 5 REALMS CONQUERED ✦</div>
+          <h2 id="victory-title">Dreamland Saved!</h2>
+          <p class="modal-sub" id="victory-sub">You cleared all 5 realms from Pastel Meadow to Crimson Dream-Hell!</p>
+          <div class="victory-rank" id="victory-rank">★★★</div>
+          <div class="result-stats" id="victory-stats"></div>
+          <div id="victory-lb-status" class="lb-status-pill hidden"></div>
+          <div class="modal-actions">
+            <button id="btn-next-stage" class="primary-btn hidden" type="button">Next Stage ✦</button>
+            <button id="btn-play-again" class="primary-btn" type="button">Replay Stage · 再玩一次</button>
+            <button id="btn-victory-menu" class="ghost-btn" type="button">Character &amp; Map Select · 返回選單</button>
+          </div>
+        </div>
+
+        <div class="result-lb-panel" data-lb-panel="victory">
+          <div class="embed-lb-header">
+            <div class="embed-lb-title" id="victory-lb-title">Stage 5 Leaderboard</div>
+            <button type="button" class="embed-lb-switch" data-lb-toggle="victory">🏆 5-Stage · 五關總榜</button>
+          </div>
+          <div class="lb-char-tabs embed-char-tabs" data-lb-chars="victory">
+            <button type="button" class="lb-char-btn active" data-char="all">✦ All</button>
+            <button type="button" class="lb-char-btn" data-char="magic">✨ Luna</button>
+            <button type="button" class="lb-char-btn" data-char="gun">🔫 Pip</button>
+            <button type="button" class="lb-char-btn" data-char="blade">⚔️ Lyra</button>
+          </div>
+          <div id="victory-lb-list" class="lb-list embed-lb-list"></div>
         </div>
       </div>
     </div>
   </div>
 
   <script src="js/config.js"></script>
+  <script src="js/leaderboard.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/particles.js"></script>
   <script src="js/weather.js"></script>

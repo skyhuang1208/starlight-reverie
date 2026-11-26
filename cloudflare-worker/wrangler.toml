@@ -1,0 +1,13 @@
+name = "starlight-reverie-lb"
+main = "worker.js"
+compatibility_date = "2026-11-01"
+
+[vars]
+# Comma-separated list of allowed frontend origins (add your Cloudflare Pages domain later if you use one)
+ALLOWED_ORIGINS = "https://skyhuang1208.github.io"
+
+# Create a KV namespace in Cloudflare Dashboard -> Workers & Pages -> KV -> Create ("LEADERBOARD_KV"),
+# then paste its ID below (or bind it directly in the Cloudflare Dashboard UI):
+[[kv_namespaces]]
+binding = "LEADERBOARD_KV"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"

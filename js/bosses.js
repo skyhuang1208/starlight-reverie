@@ -49,6 +49,34 @@ window.SR = window.SR || {};
     getPhase2Text() { return 'PHASE II!'; }
     onDeathCleanup() {}
 
+    isAtArenaEdge(margin = 16) {
+      return (this.facing > 0 && this.x + this.w >= this.arena.maxX - margin) ||
+        (this.facing < 0 && this.x <= this.arena.minX + margin);
+    }
+
+    spawnShockwaves(game, color, speed = 380, r = 15, life = 1.75, y = null) {
+      const waveY = y !== null ? y : (this.y + this.h - 14);
+      [-1, 1].forEach((dir) => {
+        game.enemyProjectiles.push({
+          kind: 'wave', x: this.cx + dir * 20, y: waveY,
+          vx: dir * speed, vy: 0, r, life, color, deflectable: false
+        });
+      });
+    }
+
+    clearSummonedMinions(game) {
+      if (!game || !game.enemies) return;
+      for (const e of game.enemies) {
+        if (e.isBossSummon && !e.dead) {
+          e.dead = true;
+          SR.particles.spawnRing(e.cx, e.cy, '#ffe894', 44, 0.3);
+          SR.particles.spawnBurst(e.cx, e.cy, ['#ffe894', '#9cf5e3', '#ffffff'], 10, {
+            speedMin: 40, speedMax: 160, size: 3.8, shape: 'star'
+          });
+        }
+      }
+    }
+
     takeDamage(dmg, hitFromX, isHeavy, game) {
       if (this.dead) return;
       const finalDmg = (game && game.cheats && game.cheats.onePunch) ? 9999 : dmg;
@@ -100,9 +128,10 @@ window.SR = window.SR || {};
     constructor(arena) {
       const variant = arena.variant || 'dewdrop';
       const baseHp = variant === 'pyro' ? 820 : (variant === 'frost' ? 680 : 540);
+      const baseScore = variant === 'pyro' ? 3200 : (variant === 'frost' ? 2800 : 1500);
       super(arena, {
         w: 80, h: 86, hp: baseHp,
-        score: variant === 'pyro' ? 2200 : 1500,
+        score: baseScore,
         phaseThreshold: 0.55, initialState: 'idle', initialTimer: 0.72
       });
       this.type = 'midboss';
@@ -148,16 +177,11 @@ window.SR = window.SR || {};
           this.stateTimer = 1.4;
         }
       } else if (this.state === 'stomp_air') {
-        if (this.onGround && this.vy >= 0) {
+        if ((this.onGround && this.vy >= 0) || this.stateTimer <= 0) {
           game.addShake(5);
           SR.audio.hit(true);
           SR.particles.spawnRing(this.cx, this.y + this.h, projCol, 105, 0.35);
-          [-1, 1].forEach((dir) => {
-            game.enemyProjectiles.push({
-              kind: 'wave', x: this.cx + dir * 24, y: this.y + this.h - 14,
-              vx: dir * (this.phase === 2 ? 440 : 365), vy: 0, r: 16, life: 1.9, color: projCol, deflectable: false
-            });
-          });
+          this.spawnShockwaves(game, projCol, this.phase === 2 ? 440 : 365, 16, 1.9);
           // Multi-directional crystal/frost shards erupting upward on slam!
           const shardCnt = this.phase === 2 ? 6 : 4;
           for (let i = 0; i < shardCnt; i++) {
@@ -213,9 +237,7 @@ window.SR = window.SR || {};
             vx: -this.facing * 120, vy: -240, gravity: 560, r: 8.5, life: 1.5, color: projCol, deflectable: true
           });
         }
-        const hitEdge = (this.facing > 0 && this.x + this.w >= this.arena.maxX - 14) ||
-          (this.facing < 0 && this.x <= this.arena.minX + 14);
-        if (hitEdge || this.stateTimer <= 0) {
+        if (this.isAtArenaEdge(14) || this.stateTimer <= 0) {
           this.state = 'idle';
           this.stateTimer = 0.78 / speedMult;
           this.vx = 0;
@@ -251,7 +273,10 @@ window.SR = window.SR || {};
     getHitBurstColors() { return [this.spec.p1, this.spec.p2, '#ffffff']; }
     getPhase2RingColor() { return this.spec.p2; }
     getPhase2Text() { return this.spec.wakeText; }
-    onDeathCleanup() { this.meteors = []; }
+    onDeathCleanup(game) {
+      this.meteors = [];
+      this.clearSummonedMinions(game);
+    }
 
     update(dt, player, level, game) {
       this.animTime += dt;
@@ -395,15 +420,8 @@ window.SR = window.SR || {};
             });
           });
         }
-        const hitEdge = (this.facing > 0 && this.x + this.w >= this.arena.maxX - 24) ||
-          (this.facing < 0 && this.x <= this.arena.minX + 24);
-        if (hitEdge || this.stateTimer <= 0) {
-          [-1, 1].forEach((dir) => {
-            game.enemyProjectiles.push({
-              kind: 'wave', x: this.cx, y: 558, vx: dir * 410, vy: 0,
-              r: 16, life: 1.8, color: this.spec.p1, deflectable: false
-            });
-          });
+        if (this.isAtArenaEdge(24) || this.stateTimer <= 0) {
+          this.spawnShockwaves(game, this.spec.p1, 410, 16, 1.8, 558);
           this.vx = 0;
           this.targetX = this.x;
           this.targetY = 275;
@@ -421,16 +439,26 @@ window.SR = window.SR || {};
         this.x += (this.targetX - this.x) * Math.min(1, dt * 4);
         this.y += (this.targetY - this.y) * Math.min(1, dt * 4);
         if (this.stateTimer <= 0) {
-          const activeMinions = game.enemies.filter((e) => !e.dead && !e.isBoss).length;
+          const activeMinions = game.enemies.filter((e) => !e.dead && e.isBossSummon).length;
           if (activeMinions < 2) {
             const leftX = this.arena.minX + 160;
             const rightX = this.arena.maxX - 210;
             const m0 = this.spec.minions[0];
             const m1 = this.spec.minions[1];
-            game.enemies.push(new SR.Enemy({ type: m0, x: leftX, y: m0 === 'wisp' || m0 === 'bomber' ? 310 : 525, homeY: 310, patrolMin: this.arena.minX + 30, patrolMax: this.arena.maxX - 30 }, level.meta));
-            game.enemies.push(new SR.Enemy({ type: m1, x: rightX, y: m1 === 'wisp' || m1 === 'bomber' ? 310 : 525, homeY: 310, patrolMin: this.arena.minX + 30, patrolMax: this.arena.maxX - 30 }, level.meta));
-            SR.particles.spawnRing(leftX + 19, 520, this.spec.p1, 48, 0.35);
-            SR.particles.spawnRing(rightX + 19, 320, this.spec.p2, 48, 0.35);
+            [
+              { type: m0, x: leftX, ringCol: this.spec.p1 },
+              { type: m1, x: rightX, ringCol: this.spec.p2 }
+            ].forEach((cfg) => {
+              const isFly = cfg.type === 'wisp' || cfg.type === 'bomber';
+              const spawnY = isFly ? 310 : 525;
+              const minion = new SR.Enemy({
+                type: cfg.type, x: cfg.x, y: spawnY, homeY: spawnY,
+                patrolMin: this.arena.minX + 30, patrolMax: this.arena.maxX - 30
+              }, level.meta);
+              minion.isBossSummon = true;
+              game.enemies.push(minion);
+              SR.particles.spawnRing(cfg.x + 19, spawnY, cfg.ringCol, 48, 0.35);
+            });
             SR.audio.castMagic();
           }
           this.state = 'float_idle';
@@ -474,17 +502,7 @@ window.SR = window.SR || {};
     onDeathCleanup(game) {
       this.meteors = [];
       this.pendingSummonSpots = [];
-      if (game && game.enemies) {
-        for (const e of game.enemies) {
-          if (e.isBossSummon && !e.dead) {
-            e.dead = true;
-            SR.particles.spawnRing(e.cx, e.cy, '#ffe894', 44, 0.3);
-            SR.particles.spawnBurst(e.cx, e.cy, ['#ffe894', '#9cf5e3', '#ffffff'], 10, {
-              speedMin: 40, speedMax: 160, size: 3.8, shape: 'star'
-            });
-          }
-        }
-      }
+      this.clearSummonedMinions(game);
     }
 
     canSummon(game) {
@@ -558,7 +576,7 @@ window.SR = window.SR || {};
         }, level.meta);
         probe.x = SR.clamp(sp.x - probe.w * 0.5, minX, maxX - probe.w);
         probe.y = probe.flying ? Math.max(185, sp.floorY - 155) : (sp.floorY - probe.h);
-        probe.baseY = probe.y;
+        probe.homeY = probe.y;
         probe.hp = Math.max(24, Math.round(probe.hp * 0.68));
         probe.maxHp = probe.hp;
         probe.isBossSummon = true;
@@ -758,15 +776,8 @@ window.SR = window.SR || {};
           SR.audio.slide();
         }
       } else if (this.state === 'cane_dash') {
-        const hitEdge = (this.facing > 0 && this.x + this.w >= this.arena.maxX - 16) ||
-          (this.facing < 0 && this.x <= this.arena.minX + 16);
-        if (hitEdge || this.stateTimer <= 0) {
-          [-1, 1].forEach((dir) => {
-            game.enemyProjectiles.push({
-              kind: 'wave', x: this.cx + dir * 20, y: this.y + this.h - 14,
-              vx: dir * 380, vy: 0, r: 15, life: 1.6, color: '#ff9fd6', deflectable: false
-            });
-          });
+        if (this.isAtArenaEdge(16) || this.stateTimer <= 0) {
+          this.spawnShockwaves(game, '#ff9fd6', 380, 15, 1.6);
           this.vx = 0;
           this.state = 'idle';
           this.stateTimer = 0.78 / spd;
@@ -795,9 +806,7 @@ window.SR = window.SR || {};
             r: 10.5, life: 2.3, color: '#ffe58f', deflectable: true
           });
         }
-        const hitEdge = (this.facing > 0 && this.x + this.w >= this.arena.maxX - 16) ||
-          (this.facing < 0 && this.x <= this.arena.minX + 16);
-        if (hitEdge || this.stateTimer <= 0) {
+        if (this.isAtArenaEdge(16) || this.stateTimer <= 0) {
           this.vx = 0;
           this.pushingWheelchair = false;
           this.state = 'idle';
@@ -924,9 +933,7 @@ window.SR = window.SR || {};
           SR.audio.slide();
         }
       } else if (this.state === 'sprint_dash') {
-        const hitEdge = (this.facing > 0 && this.x + this.w >= this.arena.maxX - 16) ||
-          (this.facing < 0 && this.x <= this.arena.minX + 16);
-        if (hitEdge || this.stateTimer <= 0) {
+        if (this.isAtArenaEdge(16) || this.stateTimer <= 0) {
           this.vx = 0;
           this.state = 'idle';
           this.stateTimer = 0.74 / spd;
@@ -1040,9 +1047,7 @@ window.SR = window.SR || {};
             r: 10.5, life: 2.1, color: '#ff5c74', deflectable: true
           });
         }
-        const hitEdge = (this.facing > 0 && this.x + this.w >= this.arena.maxX - 16) ||
-          (this.facing < 0 && this.x <= this.arena.minX + 16);
-        if (hitEdge || this.stateTimer <= 0) {
+        if (this.isAtArenaEdge(16) || this.stateTimer <= 0) {
           this.vx = 0;
           this.state = 'idle';
           this.stateTimer = 0.74 / spd;
@@ -1142,9 +1147,7 @@ window.SR = window.SR || {};
           SR.audio.slide();
         }
       } else if (this.state === 'coffee_dash') {
-        const hitEdge = (this.facing > 0 && this.x + this.w >= this.arena.maxX - 16) ||
-          (this.facing < 0 && this.x <= this.arena.minX + 16);
-        if (hitEdge || this.stateTimer <= 0) {
+        if (this.isAtArenaEdge(16) || this.stateTimer <= 0) {
           this.vx = 0;
           this.state = 'idle';
           this.stateTimer = 0.76 / spd;
@@ -1339,19 +1342,12 @@ window.SR = window.SR || {};
             speedMin: 40, speedMax: 120, size: 3, shape: 'star'
           });
         }
-        const hitEdge = (this.facing > 0 && this.x + this.w >= this.arena.maxX - 16) ||
-          (this.facing < 0 && this.x <= this.arena.minX + 16);
-        if (hitEdge || this.stateTimer <= 0) {
+        if (this.isAtArenaEdge(16) || this.stateTimer <= 0) {
           SR.particles.spawnRing(this.cx + this.facing * 24, this.cy, '#ff9fd6', 84, 0.3);
           if (Math.hypot(player.cx - (this.cx + this.facing * 24), player.cy - this.cy) < 78) {
             player.takeDamage(1, this.facing, game, false, 'dash');
           }
-          [-1, 1].forEach((dir) => {
-            game.enemyProjectiles.push({
-              kind: 'wave', x: this.cx + dir * 20, y: this.y + this.h - 14,
-              vx: dir * (this.phase === 2 ? 430 : 365), vy: 0, r: 15, life: 1.75, color: '#ff9fd6', deflectable: false
-            });
-          });
+          this.spawnShockwaves(game, '#ff9fd6', this.phase === 2 ? 430 : 365, 15, 1.75);
           this.vx = 0;
           this.state = 'idle';
           this.stateTimer = 0.74 / spd;

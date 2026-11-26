@@ -37,7 +37,12 @@ window.SR = window.SR || {};
           magic: true
         });
         game.enemyProjectiles.splice(i, 1);
-        game.score = (game.score || 0) + 50;
+        // Cap scored deflects per stage (max 10 x 40 = 400 pts) to prevent infinite deflect farming
+        if (game.addDeflectScore) {
+          game.addDeflectScore(40);
+        } else {
+          game.score = (game.score || 0) + 40;
+        }
         hitAny = true;
       }
     }
@@ -46,6 +51,51 @@ window.SR = window.SR || {};
       game.hitstop = Math.max(game.hitstop || 0, 0.018);
     }
     return hitAny;
+  }
+
+  // Lyra Skill (Blade Surge): blocks/deflects enemy projectiles in FRONT of her held sword,
+  // but intentionally leaves her BACK unprotected!
+  function applyBladeSurgeBlock(game, player, dirX, dirY) {
+    const projs = game.enemyProjectiles;
+    for (let i = projs.length - 1; i >= 0; i--) {
+      const ep = projs[i];
+      const relX = ep.x - player.cx;
+      const relY = ep.y - player.cy;
+      const dist = Math.hypot(relX, relY);
+      if (dist > 58 + (ep.r || 10)) continue;
+
+      // Positive dot product = in front of Lyra's held blade; negative = behind her back!
+      const forwardDot = relX * dirX + relY * dirY;
+      if (forwardDot < -8) continue;
+
+      SR.audio.deflect();
+      SR.particles.spawnRing(ep.x, ep.y, '#8ceaff', 36, 0.24);
+      SR.particles.spawnBurst(ep.x, ep.y, ['#ffffff', '#3ca4ff', '#ffe894'], 6, {
+        speedMin: 60, speedMax: 180, size: 3.2, shape: 'star', gravity: 0
+      });
+
+      if (ep.deflectable) {
+        SR.particles.spawnText(ep.x, ep.y - 12, 'DEFLECT!', '#9cf5ff', 0.9);
+        game.playerProjectiles.push({
+          kind: 'sword_qi',
+          x: ep.x,
+          y: ep.y,
+          vx: dirX * 700,
+          vy: dirY * 700,
+          r: 22,
+          dmg: 30,
+          pierce: 3,
+          hitIds: new Set(),
+          life: 0.65,
+          color: '#349eff',
+          magic: true
+        });
+        if (game.addDeflectScore) game.addDeflectScore(40);
+      } else {
+        SR.particles.spawnText(ep.x, ep.y - 12, 'BLOCK!', '#c8f6ff', 0.85);
+      }
+      projs.splice(i, 1);
+    }
   }
 
   function updatePlayerProjectiles(game, dt) {
@@ -70,10 +120,12 @@ window.SR = window.SR || {};
           }
         }
         if (best) {
-          const desiredVx = ((best.cx - p.x) / bestDist) * 425;
-          const desiredVy = ((best.cy - p.y) / bestDist) * 425;
-          p.vx += (desiredVx - p.vx) * Math.min(1, dt * 5.4);
-          p.vy += (desiredVy - p.vy) * Math.min(1, dt * 5.4);
+          const hSpd = p.homingSpeed || 425;
+          const hTurn = p.homingTurn || 5.4;
+          const desiredVx = ((best.cx - p.x) / bestDist) * hSpd;
+          const desiredVy = ((best.cy - p.y) / bestDist) * hSpd;
+          p.vx += (desiredVx - p.vx) * Math.min(1, dt * hTurn);
+          p.vy += (desiredVy - p.vy) * Math.min(1, dt * hTurn);
         }
       }
 
@@ -86,7 +138,7 @@ window.SR = window.SR || {};
         });
       }
 
-      if (p.kind === 'bolt' || p.kind === 'silver_bullet') {
+      if (p.kind === 'silver_bullet') {
         let hitWall = false;
         for (const s of game.level.solids) {
           if (p.x > s.x && p.x < s.x + s.w && p.y > s.y && p.y < s.y + s.h) {
@@ -108,6 +160,9 @@ window.SR = window.SR || {};
         if (SR.aabb(pbox, e)) {
           p.hitIds.add(e.id);
           e.takeDamage(p.dmg, p.x, p.magic, game);
+          if (p.chill && !e.isBoss) {
+            e.chillTimer = Math.max(e.chillTimer || 0, p.chill);
+          }
           if (game.registerHitCombo) game.registerHitCombo();
 
           if (p.splash) {
@@ -116,6 +171,9 @@ window.SR = window.SR || {};
               if (other.dead || other.id === e.id) continue;
               if (Math.hypot(other.cx - p.x, other.cy - p.y) <= p.splash) {
                 other.takeDamage(Math.round(p.dmg * 0.65), p.x, true, game);
+                if (p.chill && !other.isBoss) {
+                  other.chillTimer = Math.max(other.chillTimer || 0, p.chill * 0.75);
+                }
               }
             }
           }
@@ -202,13 +260,16 @@ window.SR = window.SR || {};
           const pushDir = ep.vx !== 0 ? Math.sign(ep.vx) : (player.cx >= ep.x ? 1 : -1);
           if (ep.pushForce) {
             // Shiba's Bark Sound Wave pushes the player back a noticeable distance!
-            player.applyKnockbackPush(pushDir, ep.pushForce, ep.pushLift || -210);
+            player.applyKnockbackPush(pushDir, ep.pushForce, ep.pushLift || -210, game.level ? game.level.solids : null);
             SR.particles.spawnRing(ep.x, ep.y, '#ffe58f', 54, 0.26);
             SR.particles.spawnText(player.cx, player.y - 18, '汪！擊退！', '#ffe58f', 1.0);
             player.takeDamage(1, pushDir, game, true); // preserve strong bark push!
             projs.splice(i, 1);
-          } else if (player.takeDamage(1, pushDir, game)) {
-            projs.splice(i, 1);
+          } else {
+            const hit = player.takeDamage(1, pushDir, game);
+            if (hit || (game.cheats && game.cheats.godMode)) {
+              projs.splice(i, 1);
+            }
           }
         }
       }
@@ -228,6 +289,7 @@ window.SR = window.SR || {};
 
   SR.Combat = {
     applyPlayerMelee,
+    applyBladeSurgeBlock,
     updatePlayerProjectiles,
     updateEnemyProjectiles,
     isEnemyDashing

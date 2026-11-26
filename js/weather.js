@@ -264,11 +264,12 @@ window.SR = window.SR || {};
       }
 
       // 3) Update temporary puddles & apply temporary slow to player stepping in them
+      const viewCenter = camX + viewW * 0.5;
       for (let i = this.puddles.length - 1; i >= 0; i--) {
         const p = this.puddles[i];
         p.life -= dt;
         p.ripple += dt * 4;
-        if (p.life <= 0) {
+        if (p.life <= 0 || Math.abs(p.x - viewCenter) > viewW) {
           this.puddles.splice(i, 1);
           continue;
         }

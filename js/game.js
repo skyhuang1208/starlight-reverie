@@ -5,6 +5,12 @@ window.SR = window.SR || {};
 (function (SR) {
   const W = SR.VIEW_W || 1200;
   const H = SR.VIEW_H || 680;
+  const PLAYER_NAME_KEY = 'sr_player_name';
+  const HERO_LABELS = {
+    magic: 'Luna · 法師',
+    gun: 'Pip · 射手',
+    blade: 'Lyra · 戰士'
+  };
 
   class Game {
     constructor() {
@@ -15,7 +21,31 @@ window.SR = window.SR || {};
       this.selectedChar = 'magic'; // Left = Luna (Beginner)
       this.selectedMapIndex = 0;
       this.hasSeenInstructions = false;
+      this.playerName = this.loadSavedPlayerName();
+      this.nameModalOpen = false;
+      this.nameModalCanCancel = false;
+      this.leaderboardModalOpen = false;
+      this.activeLeaderboardTab = 'stage_1';
+      this.activeLeaderboardChar = 'all';
+      this.embedPanels = {
+        trans: { stageBoard: 'stage_1', showingCampaign: false, charFilter: 'all' },
+        gameover: { stageBoard: 'stage_1', showingCampaign: false, charFilter: 'all' },
+        victory: { stageBoard: 'stage_5', showingCampaign: false, charFilter: 'all' }
+      };
       this.cheats = { godMode: false, onePunch: false };
+      this.usedCheats = false;
+      this.chainStartStage = 1;
+      this.chainLockedScore = 0;
+      this.chainLockedKills = 0;
+      this.chainDeaths = 0;
+      this.chainBonusAwarded = false;
+      this.stagesCleared = 0;
+      this.stageDeaths = 0;
+      this.stageDuration = 0;
+      this.deflectScoredCount = 0;
+      this.runFinalized = false;
+      this.checkpointSnapshot = { score: 0, kills: 0 };
+      this.bossVictoryTimeout = null;
       // 2D Adventure Map Node Coordinates (560x356 Fantasy Continent & Volcanic Isle!)
       this.mapNodes = [
         { x: 118, y: 266, idx: 0 }, // Bottom-Left: Dreamlight Meadow
@@ -54,17 +84,309 @@ window.SR = window.SR || {};
       this.bannerTimer = 0;
       this.spawnPoint = { x: 90, y: 560 };
 
+      this.aimMode = 'keyboard'; // 'mouse' (360° cursor aim) | 'keyboard' (0° / ±90° arrow aim)
+      this.mouse = { x: W * 0.65, y: H * 0.5, inside: false };
       this.input = this.createEmptyInput();
 
       this.bindUI();
       this.bindInputs();
+      this.syncPlayerNameUI();
+      if (!this.playerName) {
+        this.openNameModal(false);
+      }
       this.lastFrame = performance.now();
       requestAnimationFrame((ts) => this.loop(ts));
+    }
+
+    loadSavedPlayerName() {
+      try {
+        const saved = window.localStorage.getItem(PLAYER_NAME_KEY);
+        if (saved && saved.trim()) return saved.trim().slice(0, 18);
+      } catch (_) {}
+      return '';
+    }
+
+    savePlayerName(rawName) {
+      const cleaned = (rawName || '').trim().replace(/\s+/g, ' ').slice(0, 18);
+      this.playerName = cleaned || 'Dreamer';
+      try {
+        window.localStorage.setItem(PLAYER_NAME_KEY, this.playerName);
+      } catch (_) {}
+      this.syncPlayerNameUI();
+    }
+
+    syncPlayerNameUI() {
+      const display = this.playerName || 'Dreamer';
+      if (this.el && this.el.menuPlayerName) this.el.menuPlayerName.textContent = display;
+      if (this.el && this.el.hudPlayerName) this.el.hudPlayerName.textContent = display;
+    }
+
+    openNameModal(canCancel = false) {
+      if (!this.el || !this.el.nameOverlay) return;
+      this.nameModalOpen = true;
+      this.nameModalCanCancel = canCancel;
+      if (this.el.nameError) this.el.nameError.classList.add('hidden');
+      if (this.el.playerNameInput) {
+        this.el.playerNameInput.value = this.playerName || '';
+      }
+      if (this.el.btnNameSkip) {
+        this.el.btnNameSkip.textContent = canCancel ? 'Cancel · 取消' : 'Play as Guest · 訪客遊玩';
+      }
+      this.el.nameOverlay.classList.remove('hidden');
+      setTimeout(() => {
+        if (this.el.playerNameInput) {
+          this.el.playerNameInput.focus();
+          this.el.playerNameInput.select();
+        }
+      }, 30);
+    }
+
+    closeNameModal() {
+      this.nameModalOpen = false;
+      this.nameModalCanCancel = false;
+      if (this.el && this.el.nameOverlay) this.el.nameOverlay.classList.add('hidden');
+      if (this.el && this.el.playerNameInput) this.el.playerNameInput.blur();
+    }
+
+    submitPlayerName() {
+      if (!this.el || !this.el.playerNameInput) return;
+      const val = this.el.playerNameInput.value.trim();
+      if (!val) {
+        if (this.el.nameError) this.el.nameError.classList.remove('hidden');
+        this.el.playerNameInput.focus();
+        return;
+      }
+      SR.audio.init();
+      this.savePlayerName(val);
+      this.closeNameModal();
+      SR.audio.pickup(false);
+    }
+
+    skipPlayerName() {
+      SR.audio.init();
+      if (!this.nameModalCanCancel || !this.playerName) {
+        this.savePlayerName('Dreamer');
+      }
+      this.closeNameModal();
+      SR.audio.pickup(false);
+    }
+
+    syncSelectedCharUI() {
+      document.querySelectorAll('.char-card').forEach((c) => {
+        c.classList.toggle('selected', c.dataset.char === this.selectedChar);
+      });
+      if (this.el && this.el.selectedHeroPill) {
+        const label = HERO_LABELS[this.selectedChar] || 'Luna · 法師';
+        this.el.selectedHeroPill.textContent = `Active: ${label}`;
+      }
+    }
+
+    async openLeaderboardModal(board = null, charFilter = null) {
+      if (!this.el || !this.el.leaderboardOverlay || !SR.leaderboard) return;
+      if (board) this.activeLeaderboardTab = SR.leaderboard.normalizeBoard(board);
+      if (charFilter) this.activeLeaderboardChar = SR.leaderboard.normalizeCharFilter(charFilter);
+      this.leaderboardModalOpen = true;
+      this.el.leaderboardOverlay.classList.remove('hidden');
+      document.querySelectorAll('#lb-tabs .lb-tab-btn').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.board === this.activeLeaderboardTab);
+      });
+      document.querySelectorAll('#lb-char-tabs .lb-char-btn').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.char === this.activeLeaderboardChar);
+      });
+      if (this.el.lbList) {
+        this.el.lbList.textContent = 'Loading leaderboard... · 讀取排行榜中...';
+      }
+      const { mode, board: activeBoard, entries } = await SR.leaderboard.fetchTop(this.activeLeaderboardTab);
+      if (this.el.lbModeBadge) {
+        this.el.lbModeBadge.textContent = mode === 'cloud' ? '🌐 Global Cloud' : '💾 Local Scores';
+      }
+      SR.leaderboard.renderList(this.el.lbList, entries, activeBoard, this.activeLeaderboardChar, this.playerName);
+    }
+
+    async refreshEmbeddedLeaderboard(panelKey) {
+      const st = this.embedPanels[panelKey];
+      if (!st || !SR.leaderboard) return;
+      const board = st.showingCampaign ? 'campaign' : st.stageBoard;
+      const titleEl = document.getElementById(`${panelKey}-lb-title`);
+      const listEl = document.getElementById(`${panelKey}-lb-list`);
+      const toggleBtn = document.querySelector(`[data-lb-toggle="${panelKey}"]`);
+      const charBtns = document.querySelectorAll(`[data-lb-chars="${panelKey}"] .lb-char-btn`);
+
+      if (titleEl) titleEl.textContent = SR.leaderboard.getBoardTitle(board);
+      if (toggleBtn) {
+        toggleBtn.classList.toggle('is-campaign', st.showingCampaign);
+        const stageNum = st.stageBoard.replace('stage_', '');
+        toggleBtn.textContent = st.showingCampaign
+          ? `🎯 Stage ${stageNum} · 返回本關`
+          : '🏆 5-Stage · 五關總榜';
+      }
+      charBtns.forEach((btn) => btn.classList.toggle('active', btn.dataset.char === st.charFilter));
+      if (listEl) listEl.textContent = 'Loading...';
+
+      const { entries } = await SR.leaderboard.fetchTop(board);
+      SR.leaderboard.renderList(listEl, entries, board, st.charFilter, this.playerName);
+    }
+
+    closeLeaderboardModal() {
+      this.leaderboardModalOpen = false;
+      if (this.el && this.el.leaderboardOverlay) {
+        this.el.leaderboardOverlay.classList.add('hidden');
+      }
+    }
+
+    async handleLeaderboardReset() {
+      if (!SR.leaderboard) return;
+      const isCloud = SR.leaderboard.isCloudEnabled();
+      if (!isCloud) {
+        const ok = window.confirm('Reset ALL local leaderboard records from scratch? · 確定要清空所有本機排行榜紀錄嗎？');
+        if (!ok) return;
+        SR.leaderboard.resetLocal('all');
+        await this.openLeaderboardModal(this.activeLeaderboardTab, this.activeLeaderboardChar);
+        SR.audio.pickup(false);
+        return;
+      }
+      const key = window.prompt('Admin Reset Key (wipes ALL Global Leaderboard boards) · 請輸入管理員密鑰以重置全部排行榜：');
+      if (!key) return;
+      const res = await SR.leaderboard.adminReset('all', key);
+      if (res && res.ok) {
+        window.alert('All Global Leaderboard boards have been reset! · 全球排行榜已全部重置！');
+        await this.openLeaderboardModal(this.activeLeaderboardTab, this.activeLeaderboardChar);
+      } else {
+        window.alert(`Reset failed (${(res && res.error) || 'error'}). Check your Admin Reset Key.`);
+      }
+    }
+
+    clearBossVictoryTimeout() {
+      if (this.bossVictoryTimeout) {
+        clearTimeout(this.bossVictoryTimeout);
+        this.bossVictoryTimeout = null;
+      }
+    }
+
+    formatDuration(sec) {
+      const s = Math.max(0, Math.floor(sec || 0));
+      const m = Math.floor(s / 60);
+      const rem = s % 60;
+      return m > 0 ? `${m}:${String(rem).padStart(2, '0')}` : `${rem}s`;
+    }
+
+    renderResultStats(containerId, items) {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      container.textContent = '';
+      for (const item of items) {
+        const box = document.createElement('div');
+        box.className = 'result-stat-box';
+        const span = document.createElement('span');
+        span.textContent = item.label;
+        const strong = document.createElement('strong');
+        strong.textContent = String(item.value);
+        box.appendChild(span);
+        box.appendChild(strong);
+        container.appendChild(box);
+      }
+    }
+
+    getCombinedScore() {
+      return this.chainLockedScore + this.score + (this.chainBonusAwarded ? 5000 : 0);
+    }
+
+    getCombinedKills() {
+      return this.chainLockedKills + this.kills;
+    }
+
+    // Submits BOTH the isolated current Stage board (stage_k) AND the continuous 5-Stage board (campaign),
+    // deduplicating by (name, charId) keeping ONLY personal best, then renders the embedded Stage leaderboard!
+    async recordAndShowResultLeaderboard(panelKey, stageCleared, statusElId) {
+      const stageNum = this.selectedMapIndex + 1;
+      const stageBoard = `stage_${stageNum}`;
+      const st = this.embedPanels[panelKey];
+      if (st) {
+        st.stageBoard = stageBoard;
+        st.showingCampaign = false; // Default to current stage score at end, with toggle button to 5-stage!
+        st.charFilter = 'all';
+      }
+
+      const statusEl = statusElId ? document.getElementById(statusElId) : null;
+      if (!SR.leaderboard) return;
+
+      if (this.usedCheats || this.cheats.godMode || this.cheats.onePunch) {
+        if (statusEl) {
+          statusEl.textContent = '✨ 金手指模式 · 不計入排行榜 (Cheats Active — Unranked)';
+          statusEl.className = 'lb-status-pill unranked';
+        }
+        await this.refreshEmbeddedLeaderboard(panelKey);
+        return;
+      }
+
+      const combinedScore = this.getCombinedScore();
+      if (this.score <= 0 && combinedScore <= 0) {
+        if (statusEl) statusEl.classList.add('hidden');
+        await this.refreshEmbeddedLeaderboard(panelKey);
+        return;
+      }
+
+      if (statusEl) {
+        statusEl.textContent = '✦ Updating leaderboard... · 更新排行榜中...';
+        statusEl.className = 'lb-status-pill';
+      }
+
+      const playerName = this.playerName || 'Dreamer';
+      let stageRes = null;
+      if (this.score > 0) {
+        stageRes = await SR.leaderboard.submitScore({
+          board: stageBoard,
+          name: playerName,
+          score: this.score,
+          charId: this.selectedChar,
+          startStage: stageNum,
+          endStage: stageNum,
+          stagesCleared: stageCleared ? 1 : 0,
+          kills: this.kills,
+          deaths: this.stageDeaths,
+          durationSec: Math.max(1, Math.round(this.stageDuration)),
+          cleared: !!stageCleared
+        });
+      }
+
+      if (combinedScore > 0) {
+        const fullCleared = this.chainStartStage === 1 && stageCleared && stageNum >= SR.MAPS.length && this.stagesCleared >= SR.MAPS.length;
+        await SR.leaderboard.submitScore({
+          board: 'campaign',
+          name: playerName,
+          score: combinedScore,
+          charId: this.selectedChar,
+          startStage: this.chainStartStage,
+          endStage: stageNum,
+          stagesCleared: this.stagesCleared,
+          kills: this.getCombinedKills(),
+          deaths: this.chainDeaths,
+          durationSec: Math.max(1, Math.round(this.runDuration)),
+          cleared: fullCleared
+        });
+      }
+
+      if (statusEl) {
+        if (stageRes && stageRes.saved) {
+          const scope = stageRes.mode === 'cloud' ? 'Global' : 'Local';
+          const rankTxt = stageRes.rank ? `#${stageRes.rank}` : 'Top 100';
+          const tag = stageRes.improved ? 'New Best!' : 'Best Kept';
+          statusEl.textContent = `🏆 Stage ${stageNum} ${rankTxt} (${scope} · ${tag})`;
+          statusEl.className = 'lb-status-pill';
+        } else {
+          statusEl.classList.add('hidden');
+        }
+      }
+
+      await this.refreshEmbeddedLeaderboard(panelKey);
     }
 
     createEmptyInput() {
       return {
         left: false, right: false, up: false, down: false,
+        aimUp: false, aimDown: false,
+        aimMode: this.aimMode || 'keyboard',
+        mouseWorldX: 0, mouseWorldY: 0,
         jumpHeld: false, jumpPressed: false,
         downPressed: false, slidePressed: false, slideHeld: false,
         attackHeld: false, skillPressed: false, ultimatePressed: false
@@ -82,6 +404,22 @@ window.SR = window.SR || {};
         actionBar: $('action-bar'),
         controlsBar: $('controls-bar'),
         menuOverlay: $('menu-overlay'),
+        nameOverlay: $('name-overlay'),
+        nameForm: $('name-form'),
+        playerNameInput: $('player-name-input'),
+        nameError: $('name-error'),
+        btnNameSkip: $('btn-name-skip'),
+        btnEditName: $('btn-edit-name'),
+        btnOpenLeaderboard: $('btn-open-leaderboard'),
+        leaderboardOverlay: $('leaderboard-overlay'),
+        lbList: $('lb-list'),
+        lbModeBadge: $('lb-mode-badge'),
+        btnLbRefresh: $('btn-lb-refresh'),
+        btnLbReset: $('btn-lb-reset'),
+        btnLbClose: $('btn-lb-close'),
+        menuPlayerName: $('menu-player-name'),
+        hudPlayerName: $('hud-player-name'),
+        selectedHeroPill: $('selected-hero-pill'),
         instructionOverlay: $('instruction-overlay'),
         pauseOverlay: $('pause-overlay'),
         transitionOverlay: $('transition-overlay'),
@@ -131,10 +469,85 @@ window.SR = window.SR || {};
       const cards = document.querySelectorAll('.char-card');
       cards.forEach((card) => {
         card.addEventListener('click', () => {
-          cards.forEach((c) => c.classList.remove('selected'));
-          card.classList.add('selected');
           this.selectedChar = card.dataset.char;
+          this.syncSelectedCharUI();
           SR.audio.pickup(false);
+        });
+      });
+      this.syncSelectedCharUI();
+
+      // Player Name Registration & Quick Edit
+      if (this.el.nameForm) {
+        this.el.nameForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          this.submitPlayerName();
+        });
+      }
+      if (this.el.playerNameInput) {
+        this.el.playerNameInput.addEventListener('input', () => {
+          if (this.el.nameError) this.el.nameError.classList.add('hidden');
+        });
+      }
+      if (this.el.btnNameSkip) {
+        this.el.btnNameSkip.addEventListener('click', () => this.skipPlayerName());
+      }
+      if (this.el.btnEditName) {
+        this.el.btnEditName.addEventListener('click', () => this.openNameModal(true));
+      }
+      if (this.el.nameOverlay) {
+        this.el.nameOverlay.addEventListener('click', (e) => {
+          if (e.target === this.el.nameOverlay && this.nameModalCanCancel) {
+            this.closeNameModal();
+          }
+        });
+      }
+
+      // Full Leaderboard Modal Controls
+      if (this.el.btnOpenLeaderboard) {
+        this.el.btnOpenLeaderboard.addEventListener('click', () => {
+          this.openLeaderboardModal(`stage_${this.selectedMapIndex + 1}`, 'all');
+        });
+      }
+      if (this.el.btnLbClose) {
+        this.el.btnLbClose.addEventListener('click', () => this.closeLeaderboardModal());
+      }
+      if (this.el.btnLbRefresh) {
+        this.el.btnLbRefresh.addEventListener('click', () => this.openLeaderboardModal(this.activeLeaderboardTab, this.activeLeaderboardChar));
+      }
+      if (this.el.btnLbReset) {
+        this.el.btnLbReset.addEventListener('click', () => this.handleLeaderboardReset());
+      }
+      document.querySelectorAll('#lb-tabs .lb-tab-btn').forEach((btn) => {
+        btn.addEventListener('click', () => this.openLeaderboardModal(btn.dataset.board, null));
+      });
+      document.querySelectorAll('#lb-char-tabs .lb-char-btn').forEach((btn) => {
+        btn.addEventListener('click', () => this.openLeaderboardModal(null, btn.dataset.char));
+      });
+      if (this.el.leaderboardOverlay) {
+        this.el.leaderboardOverlay.addEventListener('click', (e) => {
+          if (e.target === this.el.leaderboardOverlay) this.closeLeaderboardModal();
+        });
+      }
+
+      // Embedded Result Leaderboard Controls (Stage Clear, Game Over, Victory)
+      document.querySelectorAll('[data-lb-toggle]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const panelKey = btn.dataset.lbToggle;
+          const st = this.embedPanels[panelKey];
+          if (!st) return;
+          st.showingCampaign = !st.showingCampaign;
+          this.refreshEmbeddedLeaderboard(panelKey);
+        });
+      });
+      document.querySelectorAll('[data-lb-chars]').forEach((group) => {
+        const panelKey = group.dataset.lbChars;
+        group.querySelectorAll('.lb-char-btn').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const st = this.embedPanels[panelKey];
+            if (!st) return;
+            st.charFilter = btn.dataset.char;
+            this.refreshEmbeddedLeaderboard(panelKey);
+          });
         });
       });
 
@@ -142,12 +555,14 @@ window.SR = window.SR || {};
       if (this.el.cheatGod) {
         this.el.cheatGod.addEventListener('change', () => {
           this.cheats.godMode = this.el.cheatGod.checked;
+          if (this.cheats.godMode) this.usedCheats = true;
           SR.audio.pickup(this.cheats.godMode);
         });
       }
       if (this.el.cheatOnePunch) {
         this.el.cheatOnePunch.addEventListener('change', () => {
           this.cheats.onePunch = this.el.cheatOnePunch.checked;
+          if (this.cheats.onePunch) this.usedCheats = true;
           SR.audio.pickup(this.cheats.onePunch);
         });
       }
@@ -204,14 +619,14 @@ window.SR = window.SR || {};
       });
       $('btn-back-menu').addEventListener('click', () => this.returnToMenu());
 
-      $('btn-retry-cp').addEventListener('click', () => this.startNewGame(this.selectedChar, true, this.selectedMapIndex));
-      $('btn-retry-full').addEventListener('click', () => this.startNewGame(this.selectedChar, false, this.selectedMapIndex));
+      $('btn-retry-cp').addEventListener('click', () => this.startNewGame(this.selectedChar, true, this.selectedMapIndex, false));
+      $('btn-retry-full').addEventListener('click', () => this.startNewGame(this.selectedChar, false, this.selectedMapIndex, false));
       $('btn-gameover-menu').addEventListener('click', () => this.returnToMenu());
 
       this.el.btnNextStage.addEventListener('click', () => this.advanceToNextStage());
       $('btn-trans-now').addEventListener('click', () => this.advanceToNextStage());
       $('btn-trans-menu').addEventListener('click', () => this.returnToMenu());
-      $('btn-play-again').addEventListener('click', () => this.startNewGame(this.selectedChar, false, this.selectedMapIndex));
+      $('btn-play-again').addEventListener('click', () => this.startNewGame(this.selectedChar, false, this.selectedMapIndex, false));
       $('btn-victory-menu').addEventListener('click', () => this.returnToMenu());
 
       this.el.btnMute.addEventListener('click', () => {
@@ -270,6 +685,14 @@ window.SR = window.SR || {};
       setTxt('dossier-zh', `${m.zh} · 點選左側冒險地圖切換關卡`);
       setTxt('dossier-midboss', m.midBossTitle);
       setTxt('dossier-finalboss', m.bossTitle);
+      const modeTag = document.getElementById('dossier-mode-tag');
+      if (modeTag) {
+        const isStage1 = this.selectedMapIndex === 0;
+        modeTag.textContent = isStage1
+          ? '🏆 Stage 1 + Full 5-Stage Chain (+5,000 Bonus) · 單關＆五關總榜'
+          : `🎯 Stage ${m.index + 1} Board + Continuous Chain · 本關＆連續總榜`;
+        modeTag.classList.toggle('trial-mode', !isStage1);
+      }
       document.querySelectorAll('.stage-dot-btn').forEach((btn) => {
         btn.classList.toggle('active', parseInt(btn.dataset.map, 10) === this.selectedMapIndex);
       });
@@ -280,6 +703,23 @@ window.SR = window.SR || {};
 
       window.addEventListener('keydown', (e) => {
         const code = e.code;
+        if (this.nameModalOpen) {
+          if (code === 'Escape' && this.nameModalCanCancel) {
+            e.preventDefault();
+            this.closeNameModal();
+          }
+          return;
+        }
+        if (this.leaderboardModalOpen) {
+          if (code === 'Escape') {
+            e.preventDefault();
+            this.closeLeaderboardModal();
+          }
+          return;
+        }
+        const activeTag = document.activeElement && document.activeElement.tagName;
+        if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
+
         if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(code)) {
           e.preventDefault();
         }
@@ -309,21 +749,25 @@ window.SR = window.SR || {};
         if (this.state !== 'playing') return;
 
         // Dual Non-Colliding Control Styles:
-        // Style A: WASD + Space + LMB (Attack) + RMB (Skill) + Q (Ultimate)
-        // Style B: Arrows + Space + 1 (Attack) + 2 (Skill) + 3 (Ultimate)
+        // Style A: WASD + Space + Mouse (360° Aim) + LMB (Attack) + RMB (Skill) + Q (Ult)
+        // Style B: Arrows + Space + 1 (Attack) + 2 (Skill) + 3 (Ult) — Hold ↑ / ↓(air) for 90° vertical aim!
         if (code === 'ArrowLeft' || code === 'KeyA') this.input.left = true;
         if (code === 'ArrowRight' || code === 'KeyD') this.input.right = true;
         if (code === 'ArrowDown' || code === 'KeyS') {
           if (!this.input.down) this.input.downPressed = true;
           this.input.down = true;
+          if (code === 'ArrowDown') this.input.aimDown = true;
         }
-        if (code === 'ArrowUp' || code === 'KeyW') {
+        if (code === 'ArrowUp') {
+          // Style B: ArrowUp aims straight UP (-90°) without forcing an involuntary jump (Space jumps!)
           this.input.up = true;
-          // For Shooter (Pip), Up/W aims upward without forcing an involuntary jump (Space jumps!)
-          if (!(this.player && this.player.charId === 'gun')) {
-            if (!this.input.jumpHeld) this.input.jumpPressed = true;
-            this.input.jumpHeld = true;
-          }
+          this.input.aimUp = true;
+        }
+        if (code === 'KeyW') {
+          // Style A: W jumps seamlessly (since Mouse aims 360°!)
+          this.input.up = true;
+          if (!this.input.jumpHeld) this.input.jumpPressed = true;
+          this.input.jumpHeld = true;
         }
         if (code === 'Space') {
           if (!this.input.jumpHeld) this.input.jumpPressed = true;
@@ -333,26 +777,63 @@ window.SR = window.SR || {};
           if (!this.input.slideHeld) this.input.slidePressed = true;
           this.input.slideHeld = true;
         }
-        if (code === 'Digit1' || code === 'Numpad1') this.input.attackHeld = true;
-        if (code === 'Digit2' || code === 'Numpad2') this.input.skillPressed = true;
-        if (code === 'Digit3' || code === 'Numpad3' || code === 'KeyQ') this.input.ultimatePressed = true;
+        if (code === 'Digit1' || code === 'Numpad1') {
+          this.aimMode = 'keyboard';
+          this.input.attackHeld = true;
+        }
+        if (code === 'Digit2' || code === 'Numpad2') {
+          this.aimMode = 'keyboard';
+          this.input.skillPressed = true;
+        }
+        if (code === 'Digit3' || code === 'Numpad3') {
+          this.aimMode = 'keyboard';
+          this.input.ultimatePressed = true;
+        }
+        if (code === 'KeyQ') {
+          this.input.ultimatePressed = true;
+        }
       });
 
       window.addEventListener('keyup', (e) => {
         const code = e.code;
         if (code === 'ArrowLeft' || code === 'KeyA') this.input.left = false;
         if (code === 'ArrowRight' || code === 'KeyD') this.input.right = false;
-        if (code === 'ArrowDown' || code === 'KeyS') this.input.down = false;
-        if (code === 'ArrowUp' || code === 'KeyW') {
+        if (code === 'ArrowDown' || code === 'KeyS') {
+          this.input.down = false;
+          if (code === 'ArrowDown') this.input.aimDown = false;
+        }
+        if (code === 'ArrowUp') {
           this.input.up = false;
-          if (!(this.player && this.player.charId === 'gun')) this.input.jumpHeld = false;
+          this.input.aimUp = false;
+        }
+        if (code === 'KeyW') {
+          this.input.up = false;
+          this.input.jumpHeld = false;
         }
         if (code === 'Space') this.input.jumpHeld = false;
         if (code === 'ShiftLeft' || code === 'ShiftRight') this.input.slideHeld = false;
         if (code === 'Digit1' || code === 'Numpad1') this.input.attackHeld = false;
       });
 
+      const updateMouseCoords = (e) => {
+        const rect = this.canvas.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return;
+        const nx = ((e.clientX - rect.left) / rect.width) * W;
+        const ny = ((e.clientY - rect.top) / rect.height) * H;
+        if (Math.hypot(nx - this.mouse.x, ny - this.mouse.y) > 2.5) {
+          this.aimMode = 'mouse';
+        }
+        this.mouse.x = SR.clamp(nx, 0, W);
+        this.mouse.y = SR.clamp(ny, 0, H);
+        this.mouse.inside = true;
+      };
+
+      this.canvas.addEventListener('mousemove', updateMouseCoords);
+      this.canvas.addEventListener('mouseleave', () => { this.mouse.inside = false; });
+
       this.canvas.addEventListener('mousedown', (e) => {
+        updateMouseCoords(e);
+        this.aimMode = 'mouse';
         if (this.state !== 'playing') return;
         SR.audio.init();
         if (e.button === 0) this.input.attackHeld = true;
@@ -370,9 +851,7 @@ window.SR = window.SR || {};
       const order = ['magic', 'gun', 'blade'];
       const idx = (order.indexOf(this.selectedChar) + dir + order.length) % order.length;
       this.selectedChar = order[idx];
-      document.querySelectorAll('.char-card').forEach((c) => {
-        c.classList.toggle('selected', c.dataset.char === this.selectedChar);
-      });
+      this.syncSelectedCharUI();
       SR.audio.pickup(false);
     }
 
@@ -385,24 +864,32 @@ window.SR = window.SR || {};
     }
 
     advanceToNextStage() {
+      if (this.runFinalized) return;
       const nextIdx = Math.min(SR.MAPS.length - 1, this.selectedMapIndex + 1);
+      // Lock the just-cleared stage's score into the continuous 5-stage chain before resetting stageScore to 0!
+      this.chainLockedScore += this.score;
+      this.chainLockedKills += this.kills;
       this.selectedMapIndex = nextIdx;
       this.syncMapSelectorUI();
       this.startNewGame(this.selectedChar, false, nextIdx, true);
     }
 
-    startNewGame(charId, fromCheckpoint = false, mapIndex = this.selectedMapIndex, keepCampaignScore = false) {
+    startNewGame(charId, fromCheckpoint = false, mapIndex = this.selectedMapIndex, continueChain = false) {
       SR.audio.init();
       SR.particles.clearCombat();
+      this.clearBossVictoryTimeout();
       this.clearInputs();
+
+      const effectiveFromCp = fromCheckpoint && !this.runFinalized;
+      const effectiveContinue = continueChain && !this.runFinalized;
 
       this.selectedMapIndex = mapIndex;
       const freshLevel = SR.createLevel(mapIndex);
-      const prevSpawn = fromCheckpoint ? { ...this.spawnPoint } : { ...freshLevel.spawn };
-      const prevCpIds = fromCheckpoint
+      const prevSpawn = effectiveFromCp ? { ...this.spawnPoint } : { ...freshLevel.spawn };
+      const prevCpIds = effectiveFromCp
         ? this.level.checkpoints.filter((c) => c.activated).map((c) => c.id)
         : [];
-      const midBossAlreadyDone = fromCheckpoint && this.level.bossArenas.midboss && this.level.bossArenas.midboss.defeated;
+      const midBossAlreadyDone = effectiveFromCp && this.level.bossArenas.midboss && this.level.bossArenas.midboss.defeated;
 
       this.level = freshLevel;
       SR.audio.setBgmMode(this.getMapBgmMode());
@@ -418,7 +905,7 @@ window.SR = window.SR || {};
       this.player = new SR.Player(charId, this.spawnPoint.x, this.spawnPoint.y);
 
       this.enemies = this.level.enemySpawns
-        .filter((sp) => !fromCheckpoint || sp.x >= this.spawnPoint.x - 160)
+        .filter((sp) => !effectiveFromCp || sp.x >= this.spawnPoint.x - 160)
         .map((sp) => new SR.Enemy(sp, this.level.meta));
 
       this.playerProjectiles = [];
@@ -426,12 +913,46 @@ window.SR = window.SR || {};
       this.activeArena = null;
       this.activeBoss = null;
 
-      if (!fromCheckpoint && !keepCampaignScore) {
+      if (!effectiveFromCp && !effectiveContinue) {
+        // Brand-new continuous run: resets BOTH Stage score AND 5-Stage chain to 0!
         this.score = 0;
         this.kills = 0;
+        this.stageDeaths = 0;
+        this.stageDuration = 0;
+        this.deflectScoredCount = 0;
+        this.chainStartStage = mapIndex + 1;
+        this.chainLockedScore = 0;
+        this.chainLockedKills = 0;
+        this.chainDeaths = 0;
+        this.chainBonusAwarded = false;
+        this.stagesCleared = 0;
         this.runDuration = 0;
+        this.runFinalized = false;
+        this.usedCheats = !!(this.cheats.godMode || this.cheats.onePunch);
+        this.checkpointSnapshot = { score: 0, kills: 0 };
+        if (!this.usedCheats && SR.leaderboard) {
+          SR.leaderboard.startRun(charId, this.chainStartStage);
+        }
+      } else if (effectiveFromCp) {
+        // Fair Checkpoint Respawn: rolls current stage back to checkpointSnapshot minus 500 pts (min 0),
+        // preserves earlier cleared stages in chainLockedScore, and increments death counters!
+        this.stageDeaths++;
+        this.chainDeaths++;
+        this.score = Math.max(0, this.checkpointSnapshot.score - 500);
+        this.kills = this.checkpointSnapshot.kills;
+        this.checkpointSnapshot = { score: this.score, kills: this.kills };
+        if (this.cheats.godMode || this.cheats.onePunch) this.usedCheats = true;
+      } else if (effectiveContinue) {
+        // Advancing continuously to next stage: fresh Stage Score = 0, continuous chain stays intact!
+        this.score = 0;
+        this.kills = 0;
+        this.stageDeaths = 0;
+        this.stageDuration = 0;
+        this.deflectScoredCount = 0;
+        this.checkpointSnapshot = { score: 0, kills: 0 };
+        if (this.cheats.godMode || this.cheats.onePunch) this.usedCheats = true;
       }
-      if (!fromCheckpoint) {
+      if (!effectiveFromCp) {
         this.el.checkpointTag.classList.add('hidden');
       }
       this.combo = 0;
@@ -479,6 +1000,15 @@ window.SR = window.SR || {};
     }
 
     returnToMenu() {
+      // Jumping out to Menu resets the continuous 5-stage chain!
+      this.chainLockedScore = 0;
+      this.chainLockedKills = 0;
+      this.chainDeaths = 0;
+      this.chainBonusAwarded = false;
+      this.stagesCleared = 0;
+      this.runFinalized = true;
+      if (SR.leaderboard) SR.leaderboard.clearRunToken();
+      this.clearBossVictoryTimeout();
       this.clearInputs();
       this.state = 'menu';
       SR.audio.stopBgm();
@@ -517,25 +1047,39 @@ window.SR = window.SR || {};
       return SR.Combat.applyPlayerMelee(this, hitbox, dmg, facing, isHeavy);
     }
 
+    addDeflectScore(pts = 40) {
+      if (this.runFinalized || this.deflectScoredCount >= 10) return;
+      this.deflectScoredCount++;
+      this.score += pts;
+    }
+
     onEnemyKilled(e) {
-      this.kills++;
-      this.score += e.score + this.combo * 15;
       SR.audio.enemyDefeat();
       SR.particles.spawnBurst(e.cx, e.cy, ['#ff9fd6', '#ffe58f', '#9cf5e3', '#ffffff'], 16, {
         speedMin: 80, speedMax: 240, size: 4.5, shape: 'star'
       });
       SR.particles.spawnRing(e.cx, e.cy, '#ffe58f', 48, 0.3);
+      // Boss-summoned reinforcements award 0 score to prevent stalling a boss for infinite score farming!
+      if (!e.isBossSummon && !this.runFinalized) {
+        this.kills++;
+        const comboBonus = Math.min(this.combo, 25) * 15;
+        this.score += e.score + comboBonus;
+      } else if (e.isBossSummon) {
+        SR.particles.spawnText(e.cx, e.y - 16, '增援擊破', '#9cf5e3', 0.9);
+      }
       if (this.player && this.player.hp < this.player.maxHp && Math.random() < 0.32) {
         this.level.pickups.push({
-          id: 9000 + this.kills, x: e.cx, y: e.cy,
+          id: 9000 + this.kills + Math.floor(this.time * 10), x: e.cx, y: e.cy,
           kind: 'heart', collected: false, bobPhase: 0
         });
       }
     }
 
     onBossDefeated(boss) {
-      this.kills++;
-      this.score += boss.score;
+      if (!this.runFinalized) {
+        this.kills++;
+        this.score += boss.score;
+      }
       this.enemyProjectiles = [];
       this.hitstop = this.cheats.onePunch ? 0.02 : 0.05;
       this.addShake(6);
@@ -558,8 +1102,25 @@ window.SR = window.SR || {};
           id: 9991, x: boss.cx, y: 550, kind: 'heart', collected: false, bobPhase: 0
         });
       } else if (boss.arena.id === 'finalboss') {
+        this.stagesCleared++;
+        // Fair Stage Clear Bonuses: HP Bonus (+150/HP) + Clean No-Death Stage Bonus (+500)
+        // Full 5-Stage Clear Bonus (+5,000) applies ONLY to the 5-Stage Combined total (keeps Stage 5 board fair!)
+        if (!this.runFinalized && this.player) {
+          const hpBonus = this.player.hp * 150;
+          const noDeathBonus = this.stageDeaths === 0 ? 500 : 0;
+          const stageBonus = hpBonus + noDeathBonus;
+          this.score += stageBonus;
+          if (this.chainStartStage === 1 && this.selectedMapIndex >= SR.MAPS.length - 1 && this.stagesCleared >= SR.MAPS.length) {
+            this.chainBonusAwarded = true;
+          }
+          const bonusTxt = this.chainBonusAwarded ? `+${stageBonus} STAGE & +5000 5-STAGE ✦` : `+${stageBonus} CLEAR BONUS ✦`;
+          SR.particles.spawnText(boss.cx, boss.cy - 34, bonusTxt, '#ffe58f', 1.25);
+        }
         SR.audio.victory();
-        setTimeout(() => {
+        this.clearBossVictoryTimeout();
+        this.bossVictoryTimeout = setTimeout(() => {
+          this.bossVictoryTimeout = null;
+          if (this.state !== 'playing') return;
           if (this.selectedMapIndex < SR.MAPS.length - 1) {
             this.showStageTransition();
           } else {
@@ -573,67 +1134,72 @@ window.SR = window.SR || {};
       if (this.state === 'transition' || this.state === 'menu') return;
       this.clearInputs();
       this.state = 'transition';
-      this.transitionTimer = this.transitionDuration;
       const meta = this.level.meta;
       const nextMeta = SR.MAPS[this.selectedMapIndex + 1];
 
       document.getElementById('trans-eyebrow').textContent = `✦ STAGE ${this.selectedMapIndex + 1} / 5 CLEARED ✦`;
       document.getElementById('trans-title').textContent = `${meta.name} Cleared!`;
-      const stars = this.score >= 3800 && this.player.hp >= 4 ? '★★★' : (this.score >= 2200 ? '★★☆' : '★☆☆');
+      const stars = this.stageDeaths === 0 && this.player.hp >= 4 ? '★★★' : (this.stageDeaths <= 1 ? '★★☆' : '★☆☆');
       document.getElementById('trans-rank').textContent = stars;
-      document.getElementById('trans-stats').innerHTML = `
-        <div class="result-stat-box"><span>Total Score</span><strong>${this.score}</strong></div>
-        <div class="result-stat-box"><span>Defeated</span><strong>${this.kills}</strong></div>
-        <div class="result-stat-box"><span>Time</span><strong>${Math.floor(this.runDuration)}s</strong></div>
-      `;
+      this.renderResultStats('trans-stats', [
+        { label: `Stage ${this.selectedMapIndex + 1} Score`, value: this.score.toLocaleString() },
+        { label: '5-Stage Total', value: this.getCombinedScore().toLocaleString() },
+        { label: 'Stage Time', value: this.formatDuration(this.stageDuration) }
+      ]);
       document.getElementById('trans-next-name').textContent = `Stage ${this.selectedMapIndex + 2} · ${nextMeta.name}`;
       document.getElementById('trans-next-sub').textContent = `${nextMeta.zh} · ${nextMeta.stars} · Boss: ${nextMeta.bossTitle}`;
-      if (this.el.transCountdown) this.el.transCountdown.textContent = this.transitionDuration.toFixed(1);
-      if (this.el.transBarFill) this.el.transBarFill.style.width = '0%';
       if (this.el.transitionOverlay) this.el.transitionOverlay.classList.remove('hidden');
+      this.recordAndShowResultLeaderboard('trans', true, 'trans-lb-status');
     }
 
     showGameOver() {
+      this.clearBossVictoryTimeout();
       this.clearInputs();
       this.state = 'gameover';
       SR.audio.setBgmMode(this.getMapBgmMode());
-      document.getElementById('gameover-stats').innerHTML = `
-        <div class="result-stat-box"><span>Score</span><strong>${this.score}</strong></div>
-        <div class="result-stat-box"><span>Defeated</span><strong>${this.kills}</strong></div>
-        <div class="result-stat-box"><span>Time</span><strong>${Math.floor(this.runDuration)}s</strong></div>
-      `;
+      this.renderResultStats('gameover-stats', [
+        { label: `Stage ${this.selectedMapIndex + 1} Score`, value: this.score.toLocaleString() },
+        { label: '5-Stage Total', value: this.getCombinedScore().toLocaleString() },
+        { label: 'Time', value: this.formatDuration(this.stageDuration) }
+      ]);
       this.el.gameoverOverlay.classList.remove('hidden');
+      // Immediately record personal-best & display Stage Leaderboard on death!
+      this.recordAndShowResultLeaderboard('gameover', false, 'gameover-lb-status');
     }
 
     showVictory() {
-      if (this.state === 'victory') return;
+      if (this.state === 'victory' || this.state === 'menu') return;
+      this.clearBossVictoryTimeout();
       this.clearInputs();
       this.state = 'victory';
+      this.runFinalized = true; // Locks score permanently after Stage 5!
       const isFinalMap = this.selectedMapIndex >= SR.MAPS.length - 1;
+      const isFullCampaignClear = this.chainBonusAwarded;
       const meta = this.level.meta;
-      document.getElementById('victory-eyebrow').textContent = isFinalMap
-        ? '✦ ALL 5 REALMS CONQUERED ✦'
+      document.getElementById('victory-eyebrow').textContent = isFullCampaignClear
+        ? '✦ ALL 5 REALMS CONQUERED (+5,000 BONUS) ✦'
         : `✦ STAGE ${this.selectedMapIndex + 1} / 5 CLEARED ✦`;
-      document.getElementById('victory-title').textContent = isFinalMap
+      document.getElementById('victory-title').textContent = isFullCampaignClear
         ? 'Dreamland Grand Champion!'
         : `${meta.name} Cleared!`;
-      document.getElementById('victory-sub').textContent = isFinalMap
-        ? 'You overcame Malakor, Mika, and every challenger across all 5 dreamland realms!'
-        : `${meta.bossTitle} fell! Advance to Stage ${this.selectedMapIndex + 2}: ${SR.MAPS[this.selectedMapIndex + 1].name} (${SR.MAPS[this.selectedMapIndex + 1].zh}).`;
+      document.getElementById('victory-sub').textContent = isFullCampaignClear
+        ? 'Conquered all 5 realms continuously! Your Stage 5 & 5-Stage records are saved.'
+        : `${meta.bossTitle} fell! Your Stage ${this.selectedMapIndex + 1} & continuous run records are saved.`;
 
       this.el.btnNextStage.classList.toggle('hidden', isFinalMap);
       if (!isFinalMap) {
         this.el.btnNextStage.textContent = `Enter Stage ${this.selectedMapIndex + 2}: ${SR.MAPS[this.selectedMapIndex + 1].name} ✦`;
       }
 
-      const stars = this.score >= 4500 && this.player.hp >= 4 ? '★★★' : (this.score >= 3000 ? '★★☆' : '★☆☆');
+      const stars = this.stageDeaths === 0 && this.player.hp >= 4 ? '★★★' : (this.stageDeaths <= 2 ? '★★☆' : '★☆☆');
       document.getElementById('victory-rank').textContent = stars;
-      document.getElementById('victory-stats').innerHTML = `
-        <div class="result-stat-box"><span>Stage Score</span><strong>${this.score}</strong></div>
-        <div class="result-stat-box"><span>Enemies</span><strong>${this.kills}</strong></div>
-        <div class="result-stat-box"><span>Clear Time</span><strong>${Math.floor(this.runDuration)}s</strong></div>
-      `;
+      this.renderResultStats('victory-stats', [
+        { label: `Stage ${this.selectedMapIndex + 1} Score`, value: this.score.toLocaleString() },
+        { label: '5-Stage Total', value: this.getCombinedScore().toLocaleString() },
+        { label: 'Total Time', value: this.formatDuration(this.runDuration) }
+      ]);
       this.el.victoryOverlay.classList.remove('hidden');
+      this.recordAndShowResultLeaderboard('victory', true, 'victory-lb-status');
     }
 
     checkTerritoryBanner() {
@@ -667,6 +1233,7 @@ window.SR = window.SR || {};
         if (!cp.activated && Math.abs(p.cx - cp.x) < 42 && Math.abs(p.y + p.h - cp.y) < 70) {
           cp.activated = true;
           this.spawnPoint = { x: cp.x, y: cp.y };
+          this.checkpointSnapshot = { score: this.score, kills: this.kills };
           SR.audio.checkpoint();
           SR.particles.spawnRing(cp.x, cp.y - 36, '#9cf5e3', 75, 0.45);
           SR.particles.spawnText(cp.x, cp.y - 68, `✦ ${cp.label} ✦`, '#9cf5e3', 1.25);
@@ -685,7 +1252,7 @@ window.SR = window.SR || {};
             SR.particles.spawnBurst(pk.x, pk.y, ['#ff86c0', '#ffffff'], 12, { speedMin: 50, speedMax: 140, shape: 'star' });
             SR.particles.spawnText(pk.x, pk.y - 12, '+2 HP ♥', '#ff9fd6', 1.15);
           } else {
-            this.score += 75;
+            if (!this.runFinalized) this.score += 75;
             SR.audio.pickup(false);
             SR.particles.spawnBurst(pk.x, pk.y, ['#ffe58f', '#ffffff'], 8, { speedMin: 40, speedMax: 120, shape: 'star' });
             SR.particles.spawnText(pk.x, pk.y - 10, '+75 ✦', '#ffe694', 0.95);
@@ -732,11 +1299,6 @@ window.SR = window.SR || {};
 
       if (this.state === 'transition') {
         SR.particles.update(dt, 0);
-        this.transitionTimer -= dt;
-        const pct = SR.clamp(((this.transitionDuration - this.transitionTimer) / this.transitionDuration) * 100, 0, 100);
-        if (this.el.transCountdown) this.el.transCountdown.textContent = Math.max(0, this.transitionTimer).toFixed(1);
-        if (this.el.transBarFill) this.el.transBarFill.style.width = `${pct}%`;
-        if (this.transitionTimer <= 0) this.advanceToNextStage();
         return;
       }
 
@@ -749,6 +1311,7 @@ window.SR = window.SR || {};
       }
 
       this.runDuration += dt;
+      this.stageDuration += dt;
       if (this.comboTimer > 0) {
         this.comboTimer -= dt;
         if (this.comboTimer <= 0) this.combo = 0;
@@ -759,6 +1322,9 @@ window.SR = window.SR || {};
       }
 
       this.updateMovingPlatforms(dt);
+      this.input.aimMode = this.aimMode;
+      this.input.mouseWorldX = this.camX + this.mouse.x;
+      this.input.mouseWorldY = this.camY + this.mouse.y;
       this.player.update(dt, this.input, this.level, this);
 
       this.input.jumpPressed = false;

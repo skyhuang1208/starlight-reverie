@@ -1,6 +1,8 @@
 // Playable Hero Controller (Luna · Pip · Lyra)
-// Smooth platforming physics (coyote time, jump buffer, arch-safe sliding, moving clouds)
-// + Balanced Normal Attack [1/LMB], Tactical Skill [2/RMB], and 15s Ultimate [3/Q].
+// - Dual Aiming: 360° Mouse Aim (Style A) + Classic 0°/±90° Directional Key Aim (Style B)
+// - Luna (Wizard · Beginner): 🔥 Fire Bolt Attack · ❄️ Piercing Ice Volley Skill · ⚡ Thunderbolt Ult
+// - Pip (Shooter · Intermediate): 30° 3-Silver-Bullet Burst · 🌟 Piercing Golden Volley Skill · ☄️ Solar Nova Golden Ult
+// - Lyra (Warrior · Advanced): Sleek Star-Blade + 🗡️ Directional Blade Surge Skill (cuts & blocks front shots, ends with 劍氣!) + ☄️ Starfall Ult
 window.SR = window.SR || {};
 
 (function (SR) {
@@ -33,9 +35,14 @@ window.SR = window.SR || {};
       this.slideTimer = 0;
       this.slideExtraLeft = 0;
       this.slideCooldown = 0;
+      this.slideDodgeFxCd = 0;
 
-      // Aim state (Shooter upward aim!)
+      // Dual Aiming state (360° Mouse or 0°/±90° Keyboard)
+      this.aimMode = 'keyboard';
+      this.aimAngle = 0; // Radians in world space (0 = right, PI = left, -PI/2 = up, +PI/2 = down)
       this.aimUp = false;
+      this.castRecoil = 0;
+      this.lastSpellElement = 'fire';
 
       // Weather puddle temporary slow status
       this.slowTimer = 0;
@@ -53,18 +60,16 @@ window.SR = window.SR || {};
       this.hurtTimer = 0;
       this.hitFlash = 0;
 
-      // Lyra Air-Slicing Dive & 360° Cyclone state
-      this.airSlicing = false;
-      this.airSliceTick = 0;
-      this.cycloneTimer = 0;
-      this.cycloneTick = 0;
-      this.cycloneAngle = 0;
+      // Lyra Skill: Directional Blade Surge (cuts enemies, blocks frontal projectiles, fires 劍氣 at end!)
+      this.bladeSurging = false;
+      this.bladeSurgeTimer = 0;
+      this.bladeSurgeAngle = 0;
+      this.bladeSurgeTick = 0;
+      this.bladeSurgeHitCooldowns = new Map();
 
-      // Pip Ultimate multi-wave Hypernova Barrage state
+      // Pip Ult multi-wave Solar Nova state
       this.ultWavesLeft = 0;
       this.ultWaveTimer = 0;
-      this.ultFacing = 1;
-      this.ultAimUp = false;
 
       // Visual animation
       this.runTime = 0;
@@ -79,24 +84,36 @@ window.SR = window.SR || {};
 
     get cx() { return this.x + this.w * 0.5; }
     get cy() { return this.y + this.h * 0.5; }
+    get shoulderY() { return this.y + (this.sliding ? 11 : 21); }
 
     applySlow(duration) {
       this.slowTimer = Math.max(this.slowTimer, duration);
     }
 
-    // Strong external knockback push (e.g., Shiba's Bark Sound Wave!)
-    applyKnockbackPush(dir, forceX = 560, liftY = -220) {
-      this.airSlicing = false;
-      this.sliding = false;
-      if (this.h !== this.normalH) {
-        const bottom = this.y + this.h;
-        this.h = this.normalH;
-        this.y = bottom - this.h;
+    // Safely attempt to exit slide without clipping head into low arch ceilings
+    tryStandUp(solids) {
+      if (!this.sliding && this.h === this.normalH) return true;
+      if (solids && !this.canStandUp(solids)) {
+        this.sliding = true;
+        this.slideTimer = Math.max(this.slideTimer, 0.12);
+        return false;
       }
+      const bottom = this.y + this.h;
+      this.sliding = false;
+      this.h = this.normalH;
+      this.y = bottom - this.h;
+      return true;
+    }
+
+    // Strong external knockback push (e.g., Shiba's Bark Sound Wave!)
+    applyKnockbackPush(dir, forceX = 560, liftY = -220, solids = null) {
+      this.bladeSurging = false;
+      this.bladeSurgeTimer = 0;
+      const stoodUp = this.tryStandUp(solids);
       this.vx = dir * forceX;
-      this.vy = Math.min(this.vy, liftY);
+      this.vy = stoodUp ? Math.min(this.vy, liftY) : 0;
       this.hurtTimer = Math.max(this.hurtTimer, 0.34);
-      this.onGround = false;
+      if (stoodUp) this.onGround = false;
     }
 
     canStandUp(solids) {
@@ -113,10 +130,10 @@ window.SR = window.SR || {};
     }
 
     startSlide() {
-      if (this.sliding || this.slideCooldown > 0 || this.airSlicing) return;
+      if (this.sliding || this.slideCooldown > 0 || this.bladeSurging) return;
       this.sliding = true;
       this.slideTimer = this.def.slideDuration;
-      this.slideExtraLeft = 0.24; // Holding Shift / Down extends slide smoothly even longer!
+      this.slideExtraLeft = 0.24;
       this.slideCooldown = 0.24;
       this.slideDodgeFxCd = 0;
       const bottom = this.y + this.h;
@@ -147,6 +164,41 @@ window.SR = window.SR || {};
       this.squashY = 1.14;
     }
 
+    // Computes exact firing angle from Mouse (360°) OR Directional Keys (0° / ±90°)
+    updateAim(input) {
+      this.aimMode = input.aimMode || 'keyboard';
+      if (this.aimMode === 'mouse' && typeof input.mouseWorldX === 'number' && typeof input.mouseWorldY === 'number') {
+        const dx = input.mouseWorldX - this.cx;
+        const dy = input.mouseWorldY - this.shoulderY;
+        if (Math.hypot(dx, dy) > 4) {
+          this.aimAngle = Math.atan2(dy, dx);
+        }
+        // Turn hero smoothly toward mouse cursor when not locked in slide/surge
+        if (!this.sliding && !this.bladeSurging && Math.abs(dx) > 6) {
+          this.facing = dx >= 0 ? 1 : -1;
+        }
+      } else {
+        // Style B Classic 0° / ±90° Keyboard Aim:
+        // Hold ↑ -> -90° (Straight UP); Hold ↓ in mid-air -> +90° (Straight DOWN); otherwise 0°/180° horizontal!
+        if (input.aimUp) {
+          this.aimAngle = -Math.PI * 0.5;
+        } else if (input.aimDown && !this.onGround && !this.sliding) {
+          this.aimAngle = Math.PI * 0.5;
+        } else {
+          this.aimAngle = this.facing > 0 ? 0 : Math.PI;
+        }
+      }
+      this.aimUp = this.aimAngle < -Math.PI * 0.25 && this.aimAngle > -Math.PI * 0.75;
+    }
+
+    // Exact world spawn coordinates at the tip of the aimed staff / gun barrel / sword!
+    getWeaponMuzzle(angle = this.aimAngle, reach = 26) {
+      return {
+        x: this.cx + Math.cos(angle) * reach,
+        y: this.shoulderY + Math.sin(angle) * reach
+      };
+    }
+
     update(dt, input, level, game) {
       if (this.coyoteTimer > 0) this.coyoteTimer -= dt;
       if (this.jumpBuffer > 0) this.jumpBuffer -= dt;
@@ -154,6 +206,7 @@ window.SR = window.SR || {};
       if (this.slideCooldown > 0) this.slideCooldown -= dt;
       if (this.attackTimer > 0) this.attackTimer -= dt;
       if (this.attackAnim > 0) this.attackAnim -= dt;
+      if (this.castRecoil > 0) this.castRecoil = Math.max(0, this.castRecoil - dt * 5.5);
       if (this.comboResetTimer > 0) {
         this.comboResetTimer -= dt;
         if (this.comboResetTimer <= 0) this.comboStep = 0;
@@ -170,15 +223,17 @@ window.SR = window.SR || {};
       this.squashX += (1 - this.squashX) * Math.min(1, dt * 14);
       this.squashY += (1 - this.squashY) * Math.min(1, dt * 14);
 
-      this.updateActiveAbilities(dt, game);
-
       let move = 0;
       if (input.left) move -= 1;
       if (input.right) move += 1;
 
-      if (move !== 0 && !this.sliding && !this.airSlicing) {
+      if (move !== 0 && !this.sliding && !this.bladeSurging) {
         this.facing = move;
       }
+
+      // Resolve aim BEFORE combat & active abilities so projectiles always match visual weapon angle!
+      this.updateAim(input);
+      this.updateActiveAbilities(dt, level, game);
 
       // Drop through one-way bar
       if (this.onBar && input.down && input.jumpPressed) {
@@ -191,9 +246,9 @@ window.SR = window.SR || {};
       }
 
       // Slide / drop input
-      if ((input.slidePressed || (input.downPressed && this.onGround && !this.onBar)) && this.hurtTimer <= 0) {
+      if ((input.slidePressed || (input.downPressed && this.onGround && !this.onBar)) && this.hurtTimer <= 0 && !this.bladeSurging) {
         this.startSlide();
-      } else if (input.downPressed && this.onBar) {
+      } else if (input.downPressed && this.onBar && !this.bladeSurging) {
         this.dropThroughTimer = 0.24;
         this.onGround = false;
         this.onBar = false;
@@ -205,79 +260,114 @@ window.SR = window.SR || {};
         this.jumpBuffer = 0.14;
       }
 
-      this.aimUp = (this.charId === 'gun' && !!input.up);
-
       const speedMult = this.slowTimer > 0 ? 0.28 : 1.0;
-      this.updateHorizontalMotion(dt, move, speedMult, input, level, game);
+      this.updateHorizontalMotion(dt, move, speedMult, input, level);
       this.updateJumpAndGravity(dt, input, level);
-      this.handleCombatInputs(input, game);
+      this.handleCombatInputs(input, level, game);
       this.resolveWorldCollision(dt, level, game);
       this.updateRibbon(dt, game.time || 0);
 
-      // Safety net if ever pushed below map floor
       if (this.y > 760) {
         this.y = 320;
         this.vy = 0;
-        this.airSlicing = false;
+        this.bladeSurging = false;
+        this.bladeSurgeTimer = 0;
       }
     }
 
-    updateActiveAbilities(dt, game) {
-      // Pip Ultimate multi-wave Hypernova Barrage
+    finishBladeSurge(game, hitWall = false) {
+      if (!this.bladeSurging) return;
+      this.bladeSurging = false;
+      this.bladeSurgeTimer = 0;
+      const ang = this.bladeSurgeAngle;
+      const dirX = Math.cos(ang);
+      const dirY = Math.sin(ang);
+
+      // Smooth momentum carry + brief post-surge grace so finishing near a boss feels fair & crisp!
+      this.vx = hitWall ? 0 : dirX * 220;
+      this.vy = hitWall ? Math.min(0, this.vy) : Math.max(-240, dirY * 190);
+      this.invulnTimer = Math.max(this.invulnTimer, 0.22);
+      this.squashX = 1.18;
+      this.squashY = 0.86;
+
+      // Fire powerful white-inside / electric-blue-outside 劍氣 wave at the end of the sprint!
+      const muzzle = this.getWeaponMuzzle(ang, 28);
+      SR.audio.slash(3);
+      SR.particles.spawnRing(muzzle.x, muzzle.y, '#38a0ff', 76, 0.28);
+      SR.particles.spawnBurst(muzzle.x, muzzle.y, ['#ffffff', '#3ea4ff', '#ffe894'], 14, {
+        angle: ang, spread: 1.1, speedMin: 90, speedMax: 240, size: 4.5, shape: 'star', gravity: 0
+      });
+      game.playerProjectiles.push({
+        kind: 'sword_qi',
+        x: muzzle.x,
+        y: muzzle.y,
+        vx: dirX * 720,
+        vy: dirY * 720,
+        r: 38,
+        dmg: 56,
+        pierce: 6,
+        hitIds: new Set(),
+        life: 0.68,
+        color: '#1e88ff',
+        magic: true
+      });
+    }
+
+    updateActiveAbilities(dt, level, game) {
+      // Pip Ult: 3 rapid Solar Nova waves following Pip's live aimAngle!
       if (this.ultWavesLeft > 0) {
         this.ultWaveTimer -= dt;
         if (this.ultWaveTimer <= 0) {
           this.ultWavesLeft--;
-          this.ultWaveTimer = 0.17;
-          this.firePipUltimateWave(game, this.ultFacing, this.ultAimUp);
+          this.ultWaveTimer = 0.16;
+          this.firePipUltimateWave(game, this.aimAngle);
         }
       }
 
-      // Lyra [2] Skill 360° Rotational Blading Cyclone
-      if (this.cycloneTimer > 0) {
-        this.cycloneTimer -= dt;
-        this.cycloneAngle += dt * 20;
-        this.cycloneTick -= dt;
-        if (this.cycloneTick <= 0) {
-          this.cycloneTick = 0.155;
-          const rad = 148;
-          const spinBox = { x: this.cx - rad, y: this.cy - rad, w: rad * 2, h: rad * 2 };
-          game.applyPlayerMelee(spinBox, 18, this.facing, true);
-          SR.particles.spawnRing(this.cx, this.cy, '#9cf5ff', rad * 0.9, 0.22);
-          SR.particles.spawnBurst(this.cx, this.cy, ['#8be4ff', '#ffe894', '#ff9fd6'], 7, {
-            speedMin: 100, speedMax: 220, size: 4, shape: 'star', gravity: 0
+      // Lyra Skill: Directional Blade Surge (~820 px/s, ~0.34s, cuts enemies & blocks frontal shots!)
+      if (this.bladeSurging) {
+        this.bladeSurgeTimer -= dt;
+        const dirX = Math.cos(this.bladeSurgeAngle);
+        const dirY = Math.sin(this.bladeSurgeAngle);
+        const surgeSpeed = 820;
+        this.vx = dirX * surgeSpeed;
+        this.vy = dirY * surgeSpeed;
+        if (Math.abs(dirX) > 0.15) this.facing = dirX >= 0 ? 1 : -1;
+
+        // Block & deflect enemy projectiles strictly in FRONT of Lyra's held sword (NOT from her back!)
+        if (SR.Combat && SR.Combat.applyBladeSurgeBlock) {
+          SR.Combat.applyBladeSurgeBlock(game, this, dirX, dirY);
+        }
+
+        // Crisp sword-trail afterimages
+        this.afterimageTimer -= dt;
+        if (this.afterimageTimer <= 0) {
+          this.afterimageTimer = 0.036;
+          SR.particles.spawnAfterimage(this.cx, this.y + this.h, this.facing, this.charId, false);
+          SR.particles.spawnBurst(this.cx + dirX * 26, this.shoulderY + dirY * 26, ['#ffffff', '#48b2ff', '#ffe894'], 3, {
+            speedMin: 30, speedMax: 110, size: 3.4, shape: 'star', gravity: 0
           });
         }
-        if (this.cycloneTimer <= 0) {
-          this.fireCycloneCrescents(game, 2);
+
+        // Slice enemies along the forward path
+        this.bladeSurgeTick -= dt;
+        if (this.bladeSurgeTick <= 0) {
+          this.bladeSurgeTick = 0.06;
+          const leadX = this.cx + dirX * 24;
+          const leadY = this.shoulderY + dirY * 24;
+          const surgeBox = { x: leadX - 42, y: leadY - 38, w: 84, h: 76 };
+          game.applyPlayerMelee(surgeBox, 26, this.facing, true);
+        }
+
+        if (this.bladeSurgeTimer <= 0) {
+          this.finishBladeSurge(game, false);
         }
       }
     }
 
-    updateHorizontalMotion(dt, move, speedMult, input, level, game) {
-      if (this.airSlicing) {
-        // Slower forward ~30° diagonal huge-blade dive (atan2(170, 295) ≈ 30°)
-        this.vx = this.facing * 295;
-        this.vy = 170;
-        this.afterimageTimer -= dt;
-        if (this.afterimageTimer <= 0) {
-          this.afterimageTimer = 0.055;
-          SR.particles.spawnAfterimage(this.cx, this.y + this.h, this.facing, this.charId, false);
-          SR.particles.spawnBurst(this.cx + this.facing * 52, this.cy + 24, ['#8be4ff', '#ffe894', '#ffffff'], 3, {
-            speedMin: 35, speedMax: 115, size: 3.8, shape: 'star', gravity: 0
-          });
-        }
-        this.airSliceTick -= dt;
-        if (this.airSliceTick <= 0) {
-          this.airSliceTick = 0.095;
-          const diveBox = {
-            x: this.facing > 0 ? this.cx - 28 : this.cx - 148,
-            y: this.y - 36,
-            w: 176,
-            h: this.h + 76
-          };
-          game.applyPlayerMelee(diveBox, 24, this.facing, true);
-        }
+    updateHorizontalMotion(dt, move, speedMult, input, level) {
+      if (this.bladeSurging) {
+        return; // Velocity controlled directly by Blade Surge vector!
       } else if (this.sliding) {
         this.slideTimer -= dt;
         this.vx *= Math.pow(0.42, dt);
@@ -307,7 +397,7 @@ window.SR = window.SR || {};
     }
 
     updateJumpAndGravity(dt, input, level) {
-      if (this.jumpBuffer > 0 && !this.airSlicing) {
+      if (this.jumpBuffer > 0 && !this.bladeSurging) {
         const canFirstJump = this.onGround || this.coyoteTimer > 0;
         const canDoubleJump = !canFirstJump && this.jumpsLeft > 0;
         if (canFirstJump || canDoubleJump) {
@@ -344,22 +434,21 @@ window.SR = window.SR || {};
         }
       }
 
-      // Variable jump height for crisp short-hops
-      if (!input.jumpHeld && this.vy < -260 && !this.airSlicing) {
+      if (!input.jumpHeld && this.vy < -260 && !this.bladeSurging) {
         this.vy += this.def.gravity * 1.45 * dt;
       }
 
-      if (!this.airSlicing) {
+      if (!this.bladeSurging) {
         this.vy = Math.min(960, this.vy + this.def.gravity * dt);
       }
     }
 
-    handleCombatInputs(input, game) {
-      if (input.attackHeld && this.attackTimer <= 0 && this.hurtTimer <= 0 && !this.airSlicing) {
+    handleCombatInputs(input, level, game) {
+      if (input.attackHeld && this.attackTimer <= 0 && this.hurtTimer <= 0 && !this.bladeSurging) {
         this.performAttack(game);
       }
-      if (input.skillPressed && this.skillTimer <= 0 && this.hurtTimer <= 0) {
-        this.performSpecial(game);
+      if (input.skillPressed && this.skillTimer <= 0 && this.hurtTimer <= 0 && !this.bladeSurging) {
+        this.performSpecial(level, game);
       }
       if (input.ultimatePressed && this.ultimateTimer <= 0 && this.hurtTimer <= 0) {
         this.performUltimate(game);
@@ -367,6 +456,8 @@ window.SR = window.SR || {};
     }
 
     resolveWorldCollision(dt, level, game) {
+      let surgeHitSolid = false;
+
       // Move X & resolve solid walls
       this.x += this.vx * dt;
       for (const s of level.solids) {
@@ -374,7 +465,7 @@ window.SR = window.SR || {};
           if (this.vx > 0) this.x = s.x - this.w;
           else if (this.vx < 0) this.x = s.x + s.w;
           this.vx = 0;
-          if (this.airSlicing) this.airSlicing = false;
+          if (this.bladeSurging) surgeHitSolid = true;
         }
       }
 
@@ -383,10 +474,12 @@ window.SR = window.SR || {};
         if (this.x < game.activeArena.minX) {
           this.x = game.activeArena.minX;
           if (this.vx < 0) this.vx = 0;
+          if (this.bladeSurging) surgeHitSolid = true;
         }
         if (this.x + this.w > game.activeArena.maxX) {
           this.x = game.activeArena.maxX - this.w;
           if (this.vx > 0) this.vx = 0;
+          if (this.bladeSurging) surgeHitSolid = true;
         }
       }
 
@@ -398,6 +491,12 @@ window.SR = window.SR || {};
       this.onGround = false;
       this.onBar = false;
 
+      // Clamp top ceiling so upward Blade Surge never leaves screen!
+      if (this.y < 36) {
+        this.y = 36;
+        if (this.vy < 0) this.vy = 0;
+      }
+
       for (const s of level.solids) {
         if (SR.aabb(this, s)) {
           if (this.vy >= 0) {
@@ -407,11 +506,12 @@ window.SR = window.SR || {};
           } else {
             this.y = s.y + s.h;
             this.vy = 0;
+            if (this.bladeSurging) surgeHitSolid = true;
           }
         }
       }
 
-      if (!this.onGround && this.vy >= 0 && this.dropThroughTimer <= 0 && !this.airSlicing) {
+      if (!this.onGround && this.vy >= 0 && this.dropThroughTimer <= 0 && !this.bladeSurging) {
         for (const bar of level.bars) {
           if (this.x + this.w > bar.x + 4 && this.x < bar.x + bar.w - 4) {
             if (prevBottom <= bar.y + 12 && this.y + this.h >= bar.y) {
@@ -425,7 +525,7 @@ window.SR = window.SR || {};
         }
       }
 
-      if (!this.onGround && this.vy >= 0 && this.dropThroughTimer <= 0 && !this.airSlicing) {
+      if (!this.onGround && this.vy >= 0 && this.dropThroughTimer <= 0 && !this.bladeSurging) {
         for (const mp of level.movingPlatforms) {
           if (this.x + this.w > mp.x + 4 && this.x < mp.x + mp.w - 4) {
             if (prevBottom <= mp.y + 14 && this.y + this.h >= mp.y - 2) {
@@ -440,36 +540,12 @@ window.SR = window.SR || {};
         }
       }
 
+      if (this.bladeSurging && surgeHitSolid) {
+        this.finishBladeSurge(game, true);
+      }
+
       if (this.onGround) {
-        if (this.airSlicing) {
-          this.airSlicing = false;
-          this.attackTimer = 0.2;
-          this.squashX = 1.35;
-          this.squashY = 0.68;
-          SR.audio.slash(3);
-          SR.particles.spawnRing(this.cx, this.y + this.h - 4, '#ffe894', 115, 0.34);
-          SR.particles.spawnBurst(this.cx, this.y + this.h - 4, ['#8be4ff', '#ffe894', '#ff9fd6', '#ffffff'], 22, {
-            speedMin: 90, speedMax: 270, upward: 110, size: 5, shape: 'star'
-          });
-          const slamBox = { x: this.cx - 120, y: this.y - 36, w: 240, h: this.h + 44 };
-          game.applyPlayerMelee(slamBox, 40, this.facing, true);
-          [-1, 1].forEach((dir) => {
-            game.playerProjectiles.push({
-              kind: 'sword_qi',
-              x: this.cx + dir * 24,
-              y: this.y + this.h - 22,
-              vx: dir * 580,
-              vy: 0,
-              r: 28,
-              dmg: 24,
-              pierce: 4,
-              hitIds: new Set(),
-              life: 0.38,
-              color: '#2d8fff',
-              magic: true
-            });
-          });
-        } else if (!wasOnGround) {
+        if (!wasOnGround && !this.bladeSurging) {
           this.squashX = 1.2;
           this.squashY = 0.82;
           if (preLandVy > 340 && SR.audio.land) SR.audio.land();
@@ -482,7 +558,7 @@ window.SR = window.SR || {};
         this.coyoteTimer = 0.12;
       }
 
-      if (this.onGround && Math.abs(this.vx) > 20 && !this.sliding) {
+      if (this.onGround && Math.abs(this.vx) > 20 && !this.sliding && !this.bladeSurging) {
         this.runTime += dt * (Math.abs(this.vx) / 28);
       }
     }
@@ -509,224 +585,192 @@ window.SR = window.SR || {};
       }
     }
 
-    fireCycloneCrescents(game, count = 2) {
-      const dirs = count >= 4
-        ? [{ vx: 620, vy: 0 }, { vx: -620, vy: 0 }, { vx: 450, vy: -340 }, { vx: -450, vy: -340 }]
-        : [{ vx: 580, vy: 0 }, { vx: -580, vy: 0 }];
-      for (const d of dirs) {
-        game.playerProjectiles.push({
-          kind: 'sword_qi',
-          x: this.cx,
-          y: this.cy,
-          vx: d.vx,
-          vy: d.vy,
-          r: count >= 4 ? 34 : 26,
-          dmg: count >= 4 ? 36 : 20,
-          pierce: 5,
-          hitIds: new Set(),
-          life: 0.50,
-          color: '#2d8fff',
-          magic: true
-        });
-      }
-    }
-
-    getPipAim(facing, aimUp) {
-      if (aimUp) {
-        return { baseAng: -Math.PI * 0.5, originX: this.cx, originY: this.y - 6 };
-      }
-      return { baseAng: facing > 0 ? 0 : Math.PI, originX: this.cx + facing * 22, originY: this.cy - (this.sliding ? 2 : 4) };
-    }
-
-    firePipSkillFan(game, facing, aimUp = false) {
-      const count = 7;
-      const spread = 1.82;
-      const { baseAng, originX, originY } = this.getPipAim(facing, aimUp);
+    // Pip Skill: 5 Gleaming Golden Piercing Bullets in a crisp ~34° aimed fan!
+    firePipGoldenSkill(game, baseAng) {
+      const count = 5;
+      const spread = 0.60; // ~34° tight focused golden volley
+      const muzzle = this.getWeaponMuzzle(baseAng, 26);
+      SR.particles.spawnRing(muzzle.x, muzzle.y, '#ffe47a', 46, 0.24);
+      SR.particles.spawnBurst(muzzle.x, muzzle.y, ['#fff8c4', '#ffd24c', '#ffffff'], 10, {
+        angle: baseAng, spread: 0.9, speedMin: 80, speedMax: 210, life: 0.24, size: 3.6, gravity: 0, shape: 'star'
+      });
       for (let i = 0; i < count; i++) {
         const frac = -0.5 + i / (count - 1);
         const ang = baseAng + frac * spread;
         game.playerProjectiles.push({
-          kind: 'silver_prism_lance',
-          x: originX,
-          y: originY,
-          vx: Math.cos(ang) * 760,
-          vy: Math.sin(ang) * 760,
-          r: 12,
-          dmg: 21,
+          kind: 'golden_bullet',
+          x: muzzle.x,
+          y: muzzle.y,
+          vx: Math.cos(ang) * 880,
+          vy: Math.sin(ang) * 880,
+          r: 11.5,
+          dmg: 30,
           pierce: 3,
           hitIds: new Set(),
-          life: 0.85,
-          color: '#d8eeff',
+          life: 0.88,
+          color: '#ffd95a',
+          splash: 34,
           magic: true
         });
       }
     }
 
-    firePipUltimateWave(game, facing, aimUp = false) {
-      const count = 9;
-      const spread = 1.68;
-      const { baseAng, originX, originY } = this.getPipAim(facing, aimUp);
+    // Pip Ult: 3 Rapid Solar Nova Waves — Molten-Gold Solar Railbeam + 4 Golden Prism Bullets!
+    firePipUltimateWave(game, baseAng) {
+      const muzzle = this.getWeaponMuzzle(baseAng, 28);
       SR.audio.shoot(true);
+      this.castRecoil = 1.0;
 
-      for (let i = 0; i < count; i++) {
-        const frac = -0.5 + i / (count - 1);
-        const ang = baseAng + frac * spread;
+      const offsets = [-0.28, -0.14, 0.14, 0.28];
+      for (const off of offsets) {
+        const ang = baseAng + off;
         game.playerProjectiles.push({
-          kind: 'silver_prism_lance',
-          x: originX,
-          y: originY,
-          vx: Math.cos(ang) * 820,
-          vy: Math.sin(ang) * 820,
-          r: 15,
-          dmg: 29,
-          pierce: 5,
+          kind: 'golden_bullet',
+          x: muzzle.x,
+          y: muzzle.y,
+          vx: Math.cos(ang) * 900,
+          vy: Math.sin(ang) * 900,
+          r: 12,
+          dmg: 22,
+          pierce: 4,
           hitIds: new Set(),
           life: 0.95,
-          color: '#e6f5ff',
+          color: '#ffe066',
           magic: true
         });
       }
 
       game.playerProjectiles.push({
-        kind: 'silver_railbeam',
-        x: originX,
-        y: originY,
-        vx: Math.cos(baseAng) * 920,
-        vy: Math.sin(baseAng) * 920,
+        kind: 'golden_railbeam',
+        x: muzzle.x,
+        y: muzzle.y,
+        vx: Math.cos(baseAng) * 980,
+        vy: Math.sin(baseAng) * 980,
         r: 34,
-        dmg: 86,
+        dmg: 74,
         pierce: 10,
         hitIds: new Set(),
-        life: 1.0,
-        color: '#e8f5ff',
+        life: 0.98,
+        color: '#ffe26a',
+        splash: 54,
         magic: true
       });
     }
 
+    // [1 / LMB] Normal Attack
     performAttack(game) {
       this.attackTimer = this.def.attackCooldown;
       this.attackAnim = 0.24;
+      this.castRecoil = 0.85;
+      const baseAng = this.aimAngle;
 
       if (this.charId === 'blade') {
-        // Air-Slicing Dive only after a 2-step (double) jump! Slower forward ~30° huge-blade slice
-        if (!this.onGround && !this.sliding && this.airJumpCount >= 2) {
-          this.airSlicing = true;
-          this.airSliceTick = 0;
-          this.invulnTimer = Math.max(this.invulnTimer, 0.45);
-          this.vx = this.facing * 295;
-          this.vy = 170;
-          SR.audio.slash(3);
-          SR.particles.spawnSlashArc(this.cx + this.facing * 36, this.cy + 14, this.facing, 128, '#2d8fff', 3);
-          return;
-        }
-
+        // Double-jump air-slice removed (moved & upgraded into Skill: Blade Surge!)
+        // Clean 3-hit Star-Blade combo + aimed White-Inside / Blue-Outside 劍氣 wave!
         this.comboStep = (this.comboStep % 3) + 1;
         this.comboResetTimer = 0.72;
-        const dmg = this.comboStep === 3 ? 39 : (this.comboStep === 2 ? 27 : 25);
-        const reach = this.comboStep === 3 ? 150 : (this.comboStep === 2 ? 126 : 118);
+        const dmg = this.comboStep === 3 ? 40 : (this.comboStep === 2 ? 28 : 26);
+        const reach = this.comboStep === 3 ? 132 : (this.comboStep === 2 ? 112 : 104);
         SR.audio.slash(this.comboStep);
 
-        if (!this.sliding) {
-          this.vx += this.facing * (this.comboStep === 3 ? 55 : 30);
+        const dirX = Math.cos(baseAng);
+        const dirY = Math.sin(baseAng);
+        if (!this.sliding && Math.abs(dirX) > 0.3) {
+          this.vx += Math.sign(dirX) * (this.comboStep === 3 ? 48 : 24);
         }
 
-        const slashX = this.cx + this.facing * 24;
-        const slashY = this.cy - 4;
+        const slashX = this.cx + dirX * 22;
+        const slashY = this.shoulderY + dirY * 22;
         const slashColor = this.comboStep === 3 ? '#1e82ff' : '#3ea4ff';
-        SR.particles.spawnSlashArc(slashX, slashY, this.facing, reach * 0.76, slashColor, this.comboStep);
+        SR.particles.spawnSlashArc(slashX, slashY, this.facing, reach * 0.7, slashColor, this.comboStep);
 
         const hitbox = {
-          x: this.facing > 0 ? this.cx - 18 : this.cx - reach - 12,
-          y: this.y - 32,
-          w: reach + 30,
-          h: this.h + 52
+          x: slashX - reach * 0.45 + dirX * (reach * 0.32),
+          y: slashY - 48 + dirY * 28,
+          w: reach,
+          h: 96
         };
         game.applyPlayerMelee(hitbox, dmg, this.facing, this.comboStep === 3);
 
-        // White-inside, blue-outside 劍氣 wave on every swing (massive wave on 3rd combo!)
+        const muzzle = this.getWeaponMuzzle(baseAng, 30);
         game.playerProjectiles.push({
           kind: 'sword_qi',
-          x: this.cx + this.facing * 36,
-          y: this.cy - 4,
-          vx: this.facing * (this.comboStep === 3 ? 640 : 540),
-          vy: 0,
-          r: this.comboStep === 3 ? 36 : 22,
-          dmg: this.comboStep === 3 ? 30 : 12,
+          x: muzzle.x,
+          y: muzzle.y,
+          vx: dirX * (this.comboStep === 3 ? 650 : 560),
+          vy: dirY * (this.comboStep === 3 ? 650 : 560),
+          r: this.comboStep === 3 ? 32 : 20,
+          dmg: this.comboStep === 3 ? 30 : 14,
           pierce: this.comboStep === 3 ? 4 : 2,
           hitIds: new Set(),
-          life: this.comboStep === 3 ? 0.50 : 0.24,
+          life: this.comboStep === 3 ? 0.52 : 0.28,
           color: this.comboStep === 3 ? '#1f80ff' : '#3ca4ff',
           magic: true
         });
       } else if (this.charId === 'gun') {
-        // 5 metallic silver bullets ±45° spread (Forward OR straight UP when holding Up/W!); every 4th volley fires piercing platinum rounds
+        // 3 Metallic Silver Bullets in ~30° total spread (-15°, 0°, +15°) straight along aimAngle!
         this.shotCount++;
         const isBurst = this.shotCount % 4 === 0;
         SR.audio.shoot(isBurst);
-        const { baseAng, originX: muzzleX, originY: muzzleY } = this.getPipAim(this.facing, this.aimUp);
-        if (!this.sliding && !this.aimUp) this.vx -= this.facing * (isBurst ? 38 : 16);
+        const muzzle = this.getWeaponMuzzle(baseAng, 25);
+        if (!this.sliding && Math.abs(Math.cos(baseAng)) > 0.5) {
+          this.vx -= Math.sign(Math.cos(baseAng)) * (isBurst ? 28 : 12);
+        }
 
-        SR.particles.spawnBurst(muzzleX, muzzleY, isBurst ? ['#e8f4ff', '#a8d4ff', '#ffffff'] : ['#dce6f2', '#ffffff'], isBurst ? 10 : 5, {
+        SR.particles.spawnBurst(muzzle.x, muzzle.y, isBurst ? ['#e8f4ff', '#a8d4ff', '#ffffff'] : ['#dce6f2', '#ffffff'], isBurst ? 8 : 5, {
           angle: baseAng,
-          spread: 1.5, speedMin: 60, speedMax: 165, life: 0.22, size: 3.2, gravity: 0, shape: 'star'
+          spread: 0.6, speedMin: 60, speedMax: 165, life: 0.2, size: 3.0, gravity: 0, shape: 'star'
         });
 
-        const angles = [-Math.PI / 4, -Math.PI / 8, 0, Math.PI / 8, Math.PI / 4];
-        const spd = isBurst ? 780 : 700;
-
+        const angles = [-Math.PI / 12, 0, Math.PI / 12]; // Exact 30° total spread!
+        const spd = isBurst ? 860 : 780;
         angles.forEach((offset) => {
           const ang = baseAng + offset;
           game.playerProjectiles.push({
             kind: isBurst ? 'silver_piercer' : 'silver_bullet',
-            x: muzzleX,
-            y: muzzleY,
+            x: muzzle.x,
+            y: muzzle.y,
             vx: Math.cos(ang) * spd,
             vy: Math.sin(ang) * spd,
-            r: isBurst ? 10.5 : 7.5,
-            dmg: isBurst ? 27 : 17,
+            r: isBurst ? 11 : 8.5,
+            dmg: isBurst ? 26 : 18,
             pierce: isBurst ? 3 : 1,
             hitIds: new Set(),
-            life: 0.85,
+            life: 0.88,
             color: isBurst ? '#e4f3ff' : '#d5e0ee',
             magic: isBurst
           });
         });
       } else if (this.charId === 'magic') {
-        // 3 Elemental Bolts per cast: Fire Bolt + Ice Bolt + Lightning Bolt!
+        // Luna Normal Attack: 🔥 Fire Bolts aimed along aimAngle from staff tip (homing + fiery splash)!
         this.shotCount++;
+        this.lastSpellElement = 'fire';
         SR.audio.castMagic();
-        const castX = this.cx + this.facing * 20;
-        const castY = this.cy - 8;
-        SR.particles.spawnRing(castX, castY, '#a6e4ff', 24, 0.2);
+        const muzzle = this.getWeaponMuzzle(baseAng, 28);
+        SR.particles.spawnRing(muzzle.x, muzzle.y, '#ff7838', 22, 0.18);
+        SR.particles.spawnBurst(muzzle.x, muzzle.y, ['#ff5a24', '#ffb838', '#fff5c4'], 5, {
+          angle: baseAng, spread: 0.7, speedMin: 45, speedMax: 120, life: 0.22, size: 3.0, gravity: 0
+        });
 
-        const elements = [
-          { el: 'fire', color: '#ff6e38' },
-          { el: 'lightning', color: '#ffe84d' },
-          { el: 'ice', color: '#58e2ff' }
-        ];
-        const lanes = [
-          { dy: -12, vy: -145, vxMult: 0.96 },
-          { dy: 0,   vy: 0,    vxMult: 1.06 },
-          { dy: 12,  vy: 145,  vxMult: 0.96 }
-        ];
-
-        lanes.forEach((lane, idx) => {
-          const spec = elements[(idx + this.shotCount) % 3];
+        const offsets = [-0.20, 0, 0.20]; // Tight ±11.5° fiery fan along aimAngle
+        offsets.forEach((off, idx) => {
+          const ang = baseAng + off;
+          const spd = idx === 1 ? 430 : 395;
           game.playerProjectiles.push({
             kind: 'elem_bolt',
-            element: spec.el,
-            x: castX,
-            y: castY + lane.dy,
-            vx: this.facing * 335 * lane.vxMult,
-            vy: lane.vy,
-            r: 10,
-            dmg: 10,
+            element: 'fire',
+            x: muzzle.x,
+            y: muzzle.y,
+            vx: Math.cos(ang) * spd,
+            vy: Math.sin(ang) * spd,
+            r: 10.5,
+            dmg: 12,
             pierce: 1,
             hitIds: new Set(),
-            life: 1.42,
-            color: spec.color,
+            life: 1.38,
+            color: '#ff6e38',
             homing: true,
-            splash: 48,
+            splash: 50,
             magic: true
           });
         });
@@ -734,51 +778,72 @@ window.SR = window.SR || {};
     }
 
     // [2 / RMB] Skill
-    performSpecial(game) {
+    performSpecial(level, game) {
       this.skillTimer = this.def.skillCooldown;
-      this.attackAnim = 0.36;
+      this.attackAnim = 0.34;
+      this.castRecoil = 1.0;
+      const baseAng = this.aimAngle;
       SR.audio.special();
 
       if (this.charId === 'blade') {
-        this.cycloneTimer = 0.62;
-        this.cycloneTick = 0;
-        this.invulnTimer = Math.max(this.invulnTimer, 0.32);
-        SR.audio.cyclone();
-        SR.particles.spawnRing(this.cx, this.cy, '#38a0ff', 150, 0.34);
+        // New Lyra Skill: Directional Blade Surge (fast aerial/ground sword charge, blocks frontal shots, fires 劍氣 at end!)
+        if (this.sliding) {
+          this.tryStandUp(level ? level.solids : null);
+        }
+        // If standing on solid ground and aiming downward into the floor, flatten horizontally so she surges cleanly forward!
+        let surgeAng = baseAng;
+        if (this.onGround && !this.onBar && Math.sin(surgeAng) > 0.22) {
+          surgeAng = Math.cos(surgeAng) >= 0 ? 0 : Math.PI;
+        }
+        this.bladeSurging = true;
+        this.bladeSurgeTimer = 0.34;
+        this.bladeSurgeAngle = surgeAng;
+        this.bladeSurgeTick = 0;
+        this.onGround = false;
+        this.onBar = false;
+        if (Math.abs(Math.cos(surgeAng)) > 0.15) {
+          this.facing = Math.cos(surgeAng) >= 0 ? 1 : -1;
+        }
+        SR.audio.slash(3);
+        SR.particles.spawnRing(this.cx, this.shoulderY, '#3ea4ff', 68, 0.26);
+        SR.particles.spawnText(this.cx, this.y - 14, '劍影突襲 ✦', '#8ce8ff', 0.95);
       } else if (this.charId === 'gun') {
-        this.invulnTimer = Math.max(this.invulnTimer, 0.18);
-        const { originX, originY } = this.getPipAim(this.facing, this.aimUp);
-        SR.particles.spawnRing(originX, originY, '#dceeff', 58, 0.28);
-        this.firePipSkillFan(game, this.facing, this.aimUp);
+        // Pip Skill: 🌟 5 Piercing Golden Bullets aimed along aimAngle + crisp dodge-step grace!
+        this.invulnTimer = Math.max(this.invulnTimer, 0.28);
+        this.firePipGoldenSkill(game, baseAng);
       } else if (this.charId === 'magic') {
-        this.invulnTimer = Math.max(this.invulnTimer, 0.18);
-        SR.particles.spawnRing(this.cx, this.cy, '#72dcff', 110, 0.34);
-        SR.particles.spawnBurst(this.cx, this.cy, ['#ff743d', '#58e2ff', '#ffe84d'], 16, {
-          speedMin: 70, speedMax: 210, size: 4.5, shape: 'star', gravity: 20
+        // Luna Skill: ❄️ 5 Piercing Glacial Ice Bolts aimed along aimAngle (chills & slows non-boss enemies!)
+        this.lastSpellElement = 'ice';
+        this.invulnTimer = Math.max(this.invulnTimer, 0.20);
+        const muzzle = this.getWeaponMuzzle(baseAng, 28);
+        SR.particles.spawnRing(muzzle.x, muzzle.y, '#58e2ff', 58, 0.28);
+        SR.particles.spawnBurst(muzzle.x, muzzle.y, ['#58e2ff', '#c8f8ff', '#ffffff'], 14, {
+          angle: baseAng, spread: 1.0, speedMin: 80, speedMax: 220, size: 4.2, shape: 'star', gravity: 0
         });
-        const ringElems = [
-          { el: 'fire', color: '#ff6e38' },
-          { el: 'ice', color: '#58e2ff' },
-          { el: 'lightning', color: '#ffe84d' }
-        ];
-        for (let i = 0; i < 6; i++) {
-          const ang = (Math.PI * 2 * i) / 6;
-          const spec = ringElems[i % 3];
+
+        const count = 5;
+        const spread = 0.70; // ~40° aimed glacial fan
+        for (let i = 0; i < count; i++) {
+          const frac = -0.5 + i / (count - 1);
+          const ang = baseAng + frac * spread;
           game.playerProjectiles.push({
             kind: 'elem_bolt',
-            element: spec.el,
-            x: this.cx + Math.cos(ang) * 18,
-            y: this.cy + Math.sin(ang) * 18,
-            vx: Math.cos(ang) * 315,
-            vy: Math.sin(ang) * 315,
-            r: 11,
-            dmg: 14,
-            pierce: 1,
+            element: 'ice',
+            x: muzzle.x,
+            y: muzzle.y,
+            vx: Math.cos(ang) * 540,
+            vy: Math.sin(ang) * 540,
+            r: 12,
+            dmg: 20,
+            pierce: 3,
             hitIds: new Set(),
-            life: 1.45,
-            color: spec.color,
+            life: 1.35,
+            color: '#58e2ff',
             homing: true,
-            splash: 55,
+            homingSpeed: 540,
+            homingTurn: 6.2,
+            chill: 1.5,
+            splash: 38,
             magic: true
           });
         }
@@ -789,38 +854,57 @@ window.SR = window.SR || {};
     performUltimate(game) {
       this.ultimateTimer = this.def.ultimateCooldown;
       this.ultimateFlash = 0.75;
-      this.attackAnim = 0.55;
+      this.attackAnim = 0.52;
+      this.castRecoil = 1.0;
+      const baseAng = this.aimAngle;
       SR.audio.ultimate();
       game.addShake(5);
 
       if (this.charId === 'blade') {
         this.invulnTimer = Math.max(this.invulnTimer, 0.9);
-        this.cycloneTimer = Math.max(this.cycloneTimer, 0.75);
-        this.cycloneTick = 0;
-        SR.particles.spawnRing(this.cx, this.cy, '#38a0ff', 260, 0.52);
-        SR.particles.spawnBurst(this.cx, this.cy, ['#3298ff', '#8ce8ff', '#ffffff'], 34, {
+        SR.particles.spawnRing(this.cx, this.cy, '#38a0ff', 240, 0.5);
+        SR.particles.spawnBurst(this.cx, this.cy, ['#3298ff', '#8ce8ff', '#ffffff'], 32, {
           speedMin: 120, speedMax: 340, size: 6, shape: 'star', gravity: 20
         });
         SR.particles.spawnText(this.cx, this.y - 26, '✦ CELESTIAL STARFALL ✦', '#8ce8ff', 1.35);
 
-        const ultBox = { x: this.cx - 260, y: this.cy - 220, w: 520, h: 400 };
-        game.applyPlayerMelee(ultBox, 58, this.facing, true);
-        this.fireCycloneCrescents(game, 4);
+        const ultBox = { x: this.cx - 240, y: this.cy - 200, w: 480, h: 380 };
+        game.applyPlayerMelee(ultBox, 64, this.facing, true);
 
-        let swordCenter = this.cx + this.facing * 60;
+        // 3 aimed directional 劍氣 waves along aimAngle
+        const muzzle = this.getWeaponMuzzle(baseAng, 30);
+        [-0.26, 0, 0.26].forEach((off) => {
+          const ang = baseAng + off;
+          game.playerProjectiles.push({
+            kind: 'sword_qi',
+            x: muzzle.x,
+            y: muzzle.y,
+            vx: Math.cos(ang) * 680,
+            vy: Math.sin(ang) * 680,
+            r: 36,
+            dmg: 44,
+            pierce: 6,
+            hitIds: new Set(),
+            life: 0.65,
+            color: '#2d8fff',
+            magic: true
+          });
+        });
+
+        let swordCenter = this.cx + Math.cos(baseAng) * 140;
         if (game.activeBoss && !game.activeBoss.dead) {
           swordCenter = (this.cx + game.activeBoss.cx) * 0.5;
         }
-        const offsets = [-260, -155, -50, 50, 155, 260];
+        const offsets = [-250, -150, -50, 50, 150, 250];
         offsets.forEach((ox, idx) => {
           game.playerProjectiles.push({
             kind: 'starsword',
             x: swordCenter + ox,
             y: 30 - idx * 34,
-            vx: this.facing * 50,
-            vy: 760,
+            vx: this.facing * 45,
+            vy: 780,
             r: 32,
-            dmg: 58,
+            dmg: 62,
             pierce: 8,
             hitIds: new Set(),
             life: 1.35,
@@ -829,50 +913,64 @@ window.SR = window.SR || {};
           });
         });
       } else if (this.charId === 'gun') {
-        this.invulnTimer = Math.max(this.invulnTimer, 0.6);
-        this.ultFacing = this.facing;
-        this.ultAimUp = this.aimUp;
+        // Pip Ult: ☄️ Solar Nova — 3 blazing Golden Railgun + Golden Prism Bullet waves along live aimAngle!
+        this.invulnTimer = Math.max(this.invulnTimer, 0.85);
         this.ultWavesLeft = 2;
-        this.ultWaveTimer = 0.17;
-        const { originX, originY } = this.getPipAim(this.facing, this.aimUp);
-        SR.particles.spawnRing(originX, originY, '#dceeff', 135, 0.45);
-        SR.particles.spawnText(this.cx, this.y - 26, '✦ SILVER HYPERNOVA ✦', '#e6f5ff', 1.35);
-        this.firePipUltimateWave(game, this.facing, this.aimUp);
+        this.ultWaveTimer = 0.15;
+        const muzzle = this.getWeaponMuzzle(baseAng, 28);
+        SR.particles.spawnRing(muzzle.x, muzzle.y, '#ffe47a', 135, 0.45);
+        SR.particles.spawnText(this.cx, this.y - 26, '✦ SOLAR GOLDEN NOVA ✦', '#ffe885', 1.35);
+        this.firePipUltimateWave(game, baseAng);
       } else if (this.charId === 'magic') {
-        this.invulnTimer = Math.max(this.invulnTimer, 0.65);
-        SR.particles.spawnRing(this.cx, this.cy, '#ffe84d', 260, 0.55);
-        SR.particles.spawnRing(this.cx, this.cy, '#58e2ff', 190, 0.45);
-        SR.particles.spawnBurst(this.cx, this.cy, ['#ff6e38', '#58e2ff', '#ffe84d', '#ffffff'], 34, {
+        // Luna Ult: ⚡ Thunderbolt — Piercing Mega Lightning Rail-Bolt + 8 Homing Crackling Lightning Bolts!
+        this.lastSpellElement = 'lightning';
+        this.invulnTimer = Math.max(this.invulnTimer, 0.70);
+        const muzzle = this.getWeaponMuzzle(baseAng, 30);
+        SR.particles.spawnRing(this.cx, this.cy, '#ffe84d', 250, 0.52);
+        SR.particles.spawnBurst(this.cx, this.cy, ['#ffe84d', '#ffffff', '#9cf5ff'], 32, {
           speedMin: 110, speedMax: 320, size: 5.5, shape: 'star', gravity: 10
         });
-        SR.particles.spawnText(this.cx, this.y - 26, '✦ ELEMENTAL SUPERNOVA ✦', '#ffe894', 1.35);
+        SR.particles.spawnText(this.cx, this.y - 26, '✦ THUNDERBOLT STORM ✦', '#ffe84d', 1.35);
 
-        const novaBox = { x: this.cx - 250, y: this.cy - 220, w: 500, h: 420 };
-        game.applyPlayerMelee(novaBox, 45, this.facing, true);
+        const novaBox = { x: this.cx - 220, y: this.cy - 200, w: 440, h: 380 };
+        game.applyPlayerMelee(novaBox, 42, this.facing, true);
 
-        const ultElems = [
-          { el: 'fire', color: '#ff6e38' },
-          { el: 'ice', color: '#58e2ff' },
-          { el: 'lightning', color: '#ffe84d' }
-        ];
-        for (let i = 0; i < 12; i++) {
-          const ang = (Math.PI * 2 * i) / 12;
-          const spec = ultElems[i % 3];
+        // Centerpiece Mega Lightning Beam straight along aimAngle!
+        game.playerProjectiles.push({
+          kind: 'lightning_beam',
+          x: muzzle.x,
+          y: muzzle.y,
+          vx: Math.cos(baseAng) * 880,
+          vy: Math.sin(baseAng) * 880,
+          r: 26,
+          dmg: 84,
+          pierce: 10,
+          hitIds: new Set(),
+          life: 0.95,
+          color: '#ffe84d',
+          splash: 58,
+          magic: true
+        });
+
+        // 8 Homing Crackling Lightning Bolts fanning out!
+        for (let i = 0; i < 8; i++) {
+          const off = -1.05 + (2.1 / 7) * i;
+          const ang = baseAng + off;
           game.playerProjectiles.push({
             kind: 'elem_bolt',
-            element: spec.el,
-            x: this.cx + Math.cos(ang) * 26,
-            y: this.cy + Math.sin(ang) * 26,
-            vx: Math.cos(ang) * 355,
-            vy: Math.sin(ang) * 355,
-            r: 13,
-            dmg: 16,
-            pierce: 1,
+            element: 'lightning',
+            x: muzzle.x,
+            y: muzzle.y,
+            vx: Math.cos(ang) * 420,
+            vy: Math.sin(ang) * 420,
+            r: 13.5,
+            dmg: 22,
+            pierce: 2,
             hitIds: new Set(),
-            life: 1.85,
-            color: spec.color,
+            life: 1.65,
+            color: '#ffe84d',
             homing: true,
-            splash: 80,
+            splash: 64,
             magic: true
           });
         }
@@ -880,9 +978,13 @@ window.SR = window.SR || {};
     }
 
     // source: 'contact' | 'dash' | 'projectile'
-    // Sliding smoothly avoids normal enemy body 'contact', but NOT 'projectile' (bullets) or 'dash' attacks!
+    // - Sliding avoids normal enemy body 'contact', NOT 'projectile' or 'dash'
+    // - Lyra's Blade Surge is IMMUNE to 'contact' & 'dash' on her path, and blocks frontal projectiles via sword (back remains vulnerable!)
     takeDamage(amount, knockDir, game, keepVelocity = false, source = 'projectile') {
       if (this.invulnTimer > 0) return false;
+      if (this.bladeSurging && (source === 'contact' || source === 'dash')) {
+        return false;
+      }
       if (this.sliding && source === 'contact') {
         if (this.slideDodgeFxCd <= 0) {
           this.slideDodgeFxCd = 0.35;
@@ -891,7 +993,6 @@ window.SR = window.SR || {};
         }
         return false;
       }
-      // 金手指 #1: 無敵不扣血 (No Damage)
       if (game && game.cheats && game.cheats.godMode) {
         this.invulnTimer = 0.45;
         SR.audio.deflect();
@@ -903,16 +1004,13 @@ window.SR = window.SR || {};
       this.invulnTimer = 1.15;
       this.hurtTimer = Math.max(this.hurtTimer, 0.26);
       this.hitFlash = 0.25;
-      this.airSlicing = false;
-      if (this.sliding) {
-        const bottom = this.y + this.h;
-        this.sliding = false;
-        this.h = this.normalH;
-        this.y = bottom - this.h;
-      }
+      this.bladeSurging = false;
+      this.bladeSurgeTimer = 0;
+      const solids = game && game.level ? game.level.solids : null;
+      const stoodUp = this.sliding ? this.tryStandUp(solids) : true;
       if (!keepVelocity) {
         this.vx = knockDir * 260;
-        this.vy = -270;
+        this.vy = stoodUp ? -270 : 0;
       }
       this.squashX = 1.24;
       this.squashY = 0.8;
